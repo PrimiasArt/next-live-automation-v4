@@ -1,5 +1,13 @@
 import os
 import sys
+
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 import threading
 import multiprocessing
 from config import WEB_HOST, WEB_PORT, ADMIN_API_KEY
@@ -50,7 +58,18 @@ def main():
     # 3. Kích hoạt Tunnel tự động lấy Public Link
     tunnel_manager.start_tunnel(local_port=WEB_PORT, on_url_ready=on_tunnel_ready)
 
-    # 4. Chạy Web Server Flask
+    # 4. Tự động mở trình duyệt Web
+    import webbrowser
+    def _open_browser():
+        import time
+        time.sleep(1.2)
+        try:
+            webbrowser.open(f"http://localhost:{WEB_PORT}")
+        except Exception:
+            pass
+    threading.Thread(target=_open_browser, daemon=True).start()
+
+    # 5. Chạy Web Server Flask
     print(f"🌐 Web Server đang lắng nghe tại: http://{WEB_HOST}:{WEB_PORT}")
     try:
         app.run(host=WEB_HOST, port=WEB_PORT, debug=False, use_reloader=False)
