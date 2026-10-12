@@ -24,6 +24,7 @@ bin/*.zip
 # User Storage & Session Tokens
 storage/users/
 data/tokens.json
+data/users.json
 
 # Scratch and test logs
 scratch/

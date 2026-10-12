@@ -6,7 +6,7 @@ OBS_PORT = int(os.getenv("OBS_PORT", 4455))
 OBS_PASSWORD = os.getenv("OBS_PASSWORD", "")  # Điền mật khẩu nếu OBS WebSocket có cài đặt mật khẩu
 
 # --- MASTER ADMIN API KEY ---
-ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "HLC_ADMIN_MASTER_2026")
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "hlc-live-automation-admin-12354-4856464-4687-438137-68817-46871-31587169-187146-001")
 
 # --- CẤU HÌNH SUPABASE CLOUD ---
 SUPABASE_URL = "https://frredpdjfmafluafkrmr.supabase.co"

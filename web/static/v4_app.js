@@ -726,7 +726,7 @@ function renderAdminKeysTable(keys) {
 
     let html = '';
     keys.forEach(k => {
-        const isMaster = k.role === 'admin' || k.key === 'HLC_ADMIN_MASTER_2026';
+        const isMaster = k.role === 'admin' || k.key === 'hlc-live-automation-admin-12354-4856464-4687-438137-68817-46871-31587169-187146-001';
 
         html += `
             <tr class="border-b border-slate-800/80 hover:bg-slate-900/40 transition-all text-xs">

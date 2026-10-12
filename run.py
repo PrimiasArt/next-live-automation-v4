@@ -4,7 +4,7 @@ import threading
 import multiprocessing
 from config import WEB_HOST, WEB_PORT, ADMIN_API_KEY
 from core.state import state
-from core.auth_manager import auth_manager
+from core.api_key_manager import api_key_manager
 from core.cloud_stream_engine import cloud_stream_engine
 from core.tunnel_manager import tunnel_manager
 from web.app import create_app
@@ -29,7 +29,7 @@ def main():
     print("🚀 KHỞI ĐỘNG HỆ THỐNG: NEXT LIVE AUTOMATION V4 - CLOUD BROADCAST SAAS")
     print("=" * 75)
     print(f"⚡ Động cơ: Cloud Direct Stream Engine + Multi-Tenant Isolation")
-    print(f"👥 Hệ thống phân quyền: Đã khởi tạo ({len(auth_manager.users)} tài khoản)")
+    print(f"🔑 Hệ thống xác thực API Key: Đã nạp ({len(api_key_manager.keys)} mã khóa)")
 
     # 1. Kiểm tra Stream Processor cục bộ (nếu có)
     try:

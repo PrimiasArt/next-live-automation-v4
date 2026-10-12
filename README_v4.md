@@ -8,7 +8,7 @@ Hệ thống phát sóng livestream tự động hóa **100% trên Cloud**, gi�
 
 ### 1. 🛡️ Phân Quyền & Quản Lý Bằng API Key Đơn Giản (API Key Multi-Tenancy)
 - **Đăng nhập siêu tốc bằng 1 ô API Key duy nhất**: Không cần tên đăng nhập hay mật khẩu rườm rà.
-- **Master Admin API Key**: 1 mã API Key tối cao dành cho bạn (`HLC_ADMIN_MASTER_2026`):
+- **Master Admin API Key**: 1 mã API Key tối cao dành cho bạn (`hlc-live-automation-admin-12354-4856464-4687-438137-68817-46871-31587169-187146-001`):
   - Toàn quyền tạo và cấp mã API Key mới cho từng khách hàng chỉ với 1 click.
   - Phân bổ số luồng live tối đa (Stream Quota) và dung lượng ổ cứng (Disk Quota) cho từng khách.
   - Giám sát CPU, RAM, Disk của VPS thời gian thực.
@@ -45,7 +45,7 @@ Hệ thống phát sóng livestream tự động hóa **100% trên Cloud**, gi�
    *(hoặc chạy lệnh: `python run.py`)*
 3. Mở trình duyệt truy cập: `http://localhost:5000`
 4. Dán **Master Admin API Key** vào ô đăng nhập:
-   - **Key**: `HLC_ADMIN_MASTER_2026`
+   - **Key**: `hlc-live-automation-admin-12354-4856464-4687-438137-68817-46871-31587169-187146-001`
    *(Hoặc dán key khách demo: `HLC_DEMO_CLIENT_KEY`)*
 
 ---

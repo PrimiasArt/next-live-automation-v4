@@ -1,6 +1,6 @@
 {
-  "HLC_ADMIN_MASTER_2026": {
-    "key": "HLC_ADMIN_MASTER_2026",
+  "hlc-live-automation-admin-12354-4856464-4687-438137-68817-46871-31587169-187146-001": {
+    "key": "hlc-live-automation-admin-12354-4856464-4687-438137-68817-46871-31587169-187146-001",
     "id": "admin",
     "name": "Master Key (Trạm Phát Sóng Chính)",
     "role": "admin",
@@ -8,7 +8,7 @@
     "disk_quota_mb": 102400,
     "quota_remaining": 999999,
     "status": "active",
-    "created_at": "2026-10-12 11:48:00"
+    "created_at": "2026-10-12 11:53:26"
   },
   "HLC_DEMO_CLIENT_KEY": {
     "key": "HLC_DEMO_CLIENT_KEY",

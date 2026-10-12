@@ -7,7 +7,7 @@ from typing import Dict, List, Any, Optional
 try:
     from config import ADMIN_API_KEY
 except Exception:
-    ADMIN_API_KEY = "HLC_ADMIN_MASTER_2026"
+    ADMIN_API_KEY = "hlc-live-automation-admin-12354-4856464-4687-438137-68817-46871-31587169-187146-001"
 
 from core.quota_manager import quota_manager
 
@@ -43,6 +43,10 @@ class ApiKeyManager:
             json.dump(self.keys, f, ensure_ascii=False, indent=2)
 
     def ensure_default_keys(self):
+        # Dọn dẹp key placeholder cũ nếu có
+        if "HLC_ADMIN_MASTER_2026" in self.keys and MASTER_ADMIN_KEY != "HLC_ADMIN_MASTER_2026":
+            del self.keys["HLC_ADMIN_MASTER_2026"]
+
         # 1. Luôn bảo đảm có Admin API Key
         admin_entry = {
             "key": MASTER_ADMIN_KEY,
