@@ -21,6 +21,10 @@ Thumbs.db
 bin/*.exe
 bin/*.zip
 
+# User Storage & Session Tokens
+storage/users/
+data/tokens.json
+
 # Scratch and test logs
 scratch/
 *.log

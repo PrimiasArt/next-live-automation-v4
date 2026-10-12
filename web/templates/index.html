@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HLC CLOUD | MULTI-BRAND LIVE AUTOMATION v2</title>
+    <title>HLC CLOUD SAAS | NEXT LIVE AUTOMATION v4</title>
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#38bdf8">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -50,16 +50,42 @@
     </style>
 </head>
 <body class="p-6 min-h-screen flex flex-col justify-between">
-    <!-- Màn hình khóa xác thực Cloud API Key -->
-    <div id="auth" class="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50 {{ 'hidden' if is_authorized else '' }}">
-        <div class="glass p-10 rounded-2xl w-[28rem] text-center border-t-4 border-sky-500 shadow-2xl">
-            <div class="inline-block p-3 rounded-full bg-sky-500/10 mb-4 border border-sky-500/30">
+    <!-- Màn hình khóa xác thực Đa Người Dùng v4 Cloud SaaS -->
+    <div id="auth" class="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50">
+        <div class="glass p-8 md:p-10 rounded-2xl w-[28rem] text-center border-t-4 border-sky-500 shadow-2xl relative">
+            <div class="inline-block p-3 rounded-full bg-sky-500/10 mb-3 border border-sky-500/30">
                 <svg class="w-8 h-8 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
             </div>
             <h1 class="text-3xl font-black neon-text mb-1 tracking-wider">HLC CLOUD</h1>
-            <p class="text-slate-400 text-xs mb-6 uppercase tracking-widest font-mono">DYNAMIC STREAM PROCESSOR AUTOMATION v15.0</p>
-            <input type="password" id="key-input" class="w-full p-3.5 bg-slate-900 border border-slate-700 rounded-xl mb-4 text-center text-white outline-none focus:border-sky-500 tracking-widest font-mono text-sm transition-all" placeholder="NHẬP CLOUD API KEY">
-            <button onclick="validateCloudKey()" class="w-full p-3.5 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-xl uppercase tracking-wider transition-all shadow-lg shadow-sky-600/30">KÍCH HOẠT HỆ THỐNG</button>
+            <p class="text-slate-400 text-xs mb-6 uppercase tracking-widest font-mono">NEXT LIVE AUTOMATION v4 CLOUD SAAS</p>
+
+            <!-- Login Form -->
+            <div id="v4-login-box" class="space-y-3.5 text-left">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Tên đăng nhập:</label>
+                    <input type="text" id="v4-login-username" class="w-full p-3 bg-slate-900 border border-slate-700 rounded-xl text-white outline-none focus:border-sky-500 font-mono text-sm transition-all" placeholder="admin hoặc tên tài khoản">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Mật khẩu:</label>
+                    <input type="password" id="v4-login-password" class="w-full p-3 bg-slate-900 border border-slate-700 rounded-xl text-white outline-none focus:border-sky-500 font-mono text-sm transition-all" placeholder="••••••••" onkeypress="if(event.key==='Enter') submitLoginV4()">
+                </div>
+                <button onclick="submitLoginV4()" class="w-full p-3.5 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-xl uppercase tracking-wider transition-all shadow-lg shadow-sky-600/30 text-xs cursor-pointer flex items-center justify-center gap-2">
+                    <span>ĐĂNG NHẬP HỆ THỐNG</span>
+                    <span>🚀</span>
+                </button>
+            </div>
+
+            <!-- Legacy Key Mode Toggle -->
+            <div class="mt-4 pt-3 border-t border-slate-800 text-center">
+                <button type="button" onclick="toggleLegacyKeyMode()" class="text-[11px] text-slate-500 hover:text-sky-400 underline cursor-pointer">
+                    Hoặc dùng Legacy Cloud API Key
+                </button>
+            </div>
+            <div id="legacy-key-box" class="hidden mt-3 space-y-3">
+                <input type="password" id="key-input" class="w-full p-3 bg-slate-900 border border-slate-700 rounded-xl text-center text-white outline-none focus:border-sky-500 tracking-widest font-mono text-xs transition-all" placeholder="NHẬP CLOUD API KEY">
+                <button onclick="validateCloudKey()" class="w-full p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl uppercase transition-all cursor-pointer">Kích Hoạt Key</button>
+            </div>
+
             <p id="error-msg" class="text-rose-400 mt-4 text-xs font-semibold hidden"></p>
         </div>
     </div>
@@ -168,13 +194,223 @@
                     <span id="cloud-quota" class="neon-amber font-bold font-mono text-sm">0 Credits</span>
                 </div>
 
+                <!-- USER PROFILE PILL -->
+                <div id="v4-user-pill" class="hidden glass px-3.5 py-1.5 rounded-xl border border-sky-500/40 flex items-center gap-3 shadow-lg">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                        <span id="v4-user-name" class="font-bold text-xs text-white">Khách hàng</span>
+                        <span id="v4-user-role-badge" class="text-[9px] px-1.5 py-0.5 rounded font-mono font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40">CLIENT</span>
+                    </div>
+                    <div class="hidden md:flex items-center gap-3 text-[11px] text-slate-400 border-l border-slate-700 pl-3">
+                        <span>📡 Luồng: <b id="v4-quota-streams" class="text-sky-300 font-mono">0/1</b></span>
+                        <span>💾 Ổ đĩa: <b id="v4-quota-disk" class="text-amber-300 font-mono">0 MB</b></span>
+                    </div>
+                    <button onclick="logoutV4()" class="text-slate-400 hover:text-rose-400 p-1 cursor-pointer transition-colors" title="Đăng Xuất">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                    </button>
+                </div>
+
                 <!-- Terminate -->
-                <button onclick="terminate()" class="bg-rose-900/20 hover:bg-rose-600 text-rose-400 hover:text-white px-4 py-2 rounded-xl text-xs font-bold border border-rose-500/30 transition-all">
+                <button onclick="terminate()" class="bg-rose-900/20 hover:bg-rose-600 text-rose-400 hover:text-white px-3 py-1.5 rounded-xl text-xs font-bold border border-rose-500/30 transition-all cursor-pointer">
                     TERMINATE
                 </button>
             </div>
         </header>
 
+        <!-- MAIN V4 TABS NAVIGATION -->
+        <div class="flex items-center gap-2 mb-6 border-b border-slate-800 pb-3 overflow-x-auto">
+            <button onclick="switchV4Tab('cloud-streams')" id="v4-tab-btn-streams" class="px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 border bg-sky-600/20 text-sky-300 border-sky-500/40 transition-all cursor-pointer whitespace-nowrap shadow-lg">
+                <span class="text-base">📡</span>
+                <span>Luồng Live Cloud (FFmpeg 24/7)</span>
+                <span id="v4-active-streams-badge" class="px-1.5 py-0.2 rounded-full text-[10px] bg-sky-500/30 text-sky-200 font-mono">0</span>
+            </button>
+            <button onclick="switchV4Tab('cloud-media')" id="v4-tab-btn-media" class="px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 border bg-slate-900/60 text-slate-400 border-slate-800 hover:text-white hover:bg-slate-800/80 transition-all cursor-pointer whitespace-nowrap">
+                <span class="text-base">📁</span>
+                <span>Kho Video Cloud</span>
+            </button>
+            <button onclick="switchV4Tab('processor-studio')" id="v4-tab-btn-processor" class="px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 border bg-slate-900/60 text-slate-400 border-slate-800 hover:text-white hover:bg-slate-800/80 transition-all cursor-pointer whitespace-nowrap">
+                <span class="text-base">🎛️</span>
+                <span>Stream Processor Studio (Local/OBS)</span>
+            </button>
+            <button onclick="switchV4Tab('admin-panel')" id="v4-tab-btn-admin" class="hidden px-4 py-2.5 rounded-xl font-bold text-xs items-center gap-2 border bg-purple-900/20 text-purple-300 border-purple-500/40 hover:bg-purple-800/30 transition-all cursor-pointer whitespace-nowrap">
+                <span class="text-base">🛡️</span>
+                <span>Quản Trị Hệ Thống (Admin)</span>
+            </button>
+        </div>
+
+        <!-- TAB 1: CLOUD LIVE STREAMS PANEL -->
+        <div id="panel-cloud-streams" class="v4-panel space-y-6">
+            <div class="flex flex-wrap justify-between items-center gap-4 bg-slate-900/40 p-5 rounded-2xl border border-slate-800">
+                <div>
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                        <span>📡 Trung Tâm Điều Khiển Luồng Live Cloud</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-mono font-bold">24/7 DEDICATED</span>
+                    </h3>
+                    <p class="text-slate-400 text-xs mt-1">Phát lặp video trực tiếp từ Cloud Server Data Center với đường truyền 1Gbps - 0% giật lag, 1% CPU máy tính.</p>
+                </div>
+                <button onclick="openNewStreamModal()" class="px-4 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-sky-600/30 uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer">
+                    <span>➕ Khởi Tạo Luồng Mới</span>
+                </button>
+            </div>
+
+            <!-- Danh sách luồng live -->
+            <div id="cloud-streams-list">
+                <!-- Rendered dynamically by v4_app.js -->
+            </div>
+        </div>
+
+        <!-- TAB 2: KHO VIDEO CLOUD (MEDIA LIBRARY) -->
+        <div id="panel-cloud-media" class="v4-panel hidden space-y-6">
+            <div class="glass p-6 rounded-2xl border border-slate-800 space-y-4">
+                <div class="flex flex-wrap justify-between items-center gap-4">
+                    <div>
+                        <h3 class="text-base font-bold text-white flex items-center gap-2">
+                            <span>📁 Kho Video Lưu Trữ Cloud</span>
+                        </h3>
+                        <p class="text-slate-400 text-xs mt-0.5">Video được lưu trữ an toàn trong không gian riêng biệt của bạn trên Cloud Server.</p>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-[11px] text-slate-400 block font-semibold">Dung lượng đã sử dụng:</span>
+                        <span id="media-quota-text" class="text-xs font-bold font-mono text-sky-400">0 MB / 10,240 MB (0%)</span>
+                    </div>
+                </div>
+
+                <!-- Progress Bar dung lượng -->
+                <div class="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800">
+                    <div id="media-quota-bar" class="bg-gradient-to-r from-sky-500 to-emerald-500 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+
+                <!-- Vùng Upload Kéo Thả -->
+                <div onclick="document.getElementById('cloud-media-upload-input').click()" class="border-2 border-dashed border-slate-700 hover:border-sky-500 p-8 rounded-2xl text-center bg-slate-950/50 hover:bg-slate-900/50 transition-all cursor-pointer space-y-2">
+                    <div class="text-3xl">📤</div>
+                    <h4 class="text-xs font-bold text-slate-200">Kéo thả file video vào đây hoặc <span class="text-sky-400 underline">bấm để chọn file từ máy</span></h4>
+                    <p class="text-[11px] text-slate-500">Hỗ trợ các định dạng: MP4, MKV, FLV, MOV, TS (Dung lượng lên tới 4GB/file)</p>
+                    <input type="file" id="cloud-media-upload-input" class="hidden" accept=".mp4,.mkv,.flv,.mov,.ts" onchange="handleMediaUpload(this.files)">
+                </div>
+
+                <!-- Upload Progress Indicator -->
+                <div id="upload-progress-box" class="hidden bg-slate-950 p-4 rounded-xl border border-sky-500/40 space-y-2">
+                    <div class="flex justify-between text-xs font-mono">
+                        <span id="upload-progress-text" class="text-sky-300 font-bold">Đang tải lên: 0%</span>
+                    </div>
+                    <div class="w-full bg-slate-900 h-2 rounded-full overflow-hidden">
+                        <div id="upload-progress-bar" class="bg-sky-500 h-full rounded-full transition-all duration-100" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bảng danh sách video -->
+            <div class="glass rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
+                <div class="p-4 border-b border-slate-800 flex justify-between items-center">
+                    <h4 class="text-xs font-bold text-slate-200 uppercase tracking-wider">Danh Sách Video Trong Kho</h4>
+                    <button onclick="loadCloudMedia()" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold">🔄 Làm mới</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase bg-slate-950/60">
+                                <th class="py-3 px-4">Tên Video</th>
+                                <th class="py-3 px-4">Dung Lượng</th>
+                                <th class="py-3 px-4">Định Dạng</th>
+                                <th class="py-3 px-4">Ngày Tải Lên</th>
+                                <th class="py-3 px-4 text-right">Thao Tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cloud-media-list">
+                            <!-- Rendered by v4_app.js -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4: QUẢN TRỊ HỆ THỐNG (ADMIN PORTAL) -->
+        <div id="panel-admin-panel" class="v4-panel hidden space-y-6">
+            <!-- 4 Thẻ Giám Sát Tài Nguyên Server -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="glass p-4 rounded-2xl border border-slate-800 space-y-1">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">⚡ CPU Server</span>
+                    <div id="admin-cpu-val" class="text-2xl font-black font-mono text-emerald-400">0%</div>
+                    <span class="text-[10px] text-slate-500">Mức sử dụng chip</span>
+                </div>
+                <div class="glass p-4 rounded-2xl border border-slate-800 space-y-1">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">🧠 Bộ Nhớ RAM</span>
+                    <div id="admin-ram-val" class="text-xl font-black font-mono text-sky-400">0G / 0G</div>
+                    <span class="text-[10px] text-slate-500">Đang sử dụng</span>
+                </div>
+                <div class="glass p-4 rounded-2xl border border-slate-800 space-y-1">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">💾 Ổ Cứng SSD NVMe</span>
+                    <div id="admin-disk-val" class="text-xl font-black font-mono text-amber-400">0G / 0G</div>
+                    <span class="text-[10px] text-slate-500">Dung lượng ổ</span>
+                </div>
+                <div class="glass p-4 rounded-2xl border border-slate-800 space-y-1">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400">⏱️ Server Uptime</span>
+                    <div id="admin-uptime-val" class="text-lg font-black font-mono text-purple-400 truncate">0h 0m</div>
+                    <span class="text-[10px] text-slate-500">Thời gian hoạt động liên tục</span>
+                </div>
+            </div>
+
+            <!-- Bảng Quản Lý Khách Hàng -->
+            <div class="glass rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
+                <div class="p-4 border-b border-slate-800 flex justify-between items-center">
+                    <div>
+                        <h4 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                            <span>👥 Danh Sách Khách Hàng & Phân Quyền</span>
+                        </h4>
+                        <p class="text-[11px] text-slate-400">Cấp tài khoản, giới hạn số luồng live và dung lượng ổ cứng cho từng khách.</p>
+                    </div>
+                    <button onclick="openNewUserModal()" class="px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-600/30 transition-all flex items-center gap-1.5 cursor-pointer">
+                        <span>➕ Thêm Khách Hàng</span>
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase bg-slate-950/60">
+                                <th class="py-3 px-4">Tài Khoản</th>
+                                <th class="py-3 px-4">Tên Khách / Shop</th>
+                                <th class="py-3 px-4">Vai Trò</th>
+                                <th class="py-3 px-4">Số Luồng (Đang Live / Max)</th>
+                                <th class="py-3 px-4">Dung Lượng Ổ Cứng</th>
+                                <th class="py-3 px-4">Trạng Thái</th>
+                                <th class="py-3 px-4 text-right">Thao Tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-users-table">
+                            <!-- Rendered by v4_app.js -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Giám Sát Toàn Bộ Luồng Live Trên Server -->
+            <div class="glass rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
+                <div class="p-4 border-b border-slate-800 flex justify-between items-center">
+                    <h4 class="text-xs font-bold text-white uppercase tracking-wider">🌐 Toàn Bộ Luồng Live Đang Hoạt Động Trên Server</h4>
+                    <button onclick="loadAdminPanel()" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold">🔄 Làm mới</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase bg-slate-950/60">
+                                <th class="py-2.5 px-3">Khách Hàng</th>
+                                <th class="py-2.5 px-3">Tên Luồng</th>
+                                <th class="py-2.5 px-3">Video Nguồn</th>
+                                <th class="py-2.5 px-3">Trạng Thái</th>
+                                <th class="py-2.5 px-3">Thời Gian Live</th>
+                                <th class="py-2.5 px-3 text-right">Can Thiệp</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-global-streams-list">
+                            <!-- Rendered by v4_app.js -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: STREAM PROCESSOR STUDIO (WRAPPER) -->
+        <div id="panel-processor-studio" class="v4-panel hidden space-y-6">
         <!-- STREAM DECK HUD: THANH PHÍM TẮT NHANH -->
         <div class="mb-5 px-4 py-2.5 glass rounded-2xl border border-sky-500/20 flex flex-wrap items-center justify-between gap-3 text-xs shadow-lg">
             <div class="flex items-center gap-2">
@@ -361,6 +597,7 @@
                 </div>
             </div>
         </div>
+        </div> <!-- End of panel-processor-studio -->
     </div>
 
     <!-- Footer -->
@@ -2164,5 +2401,145 @@
             startLiveMonitorLoop();
         });
     </script>
+
+    <!-- MODAL: KHỞI TẠO LUỒNG LIVE CLOUD MỚI -->
+    <div id="modal-new-stream" class="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-50 hidden p-4">
+        <div class="glass w-full max-w-lg rounded-2xl p-6 border border-sky-500/40 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+                <h3 class="text-sm font-black uppercase text-white flex items-center gap-2">
+                    <span class="text-sky-400">➕ Khởi Tạo Luồng Live Cloud 24/7</span>
+                </h3>
+                <button onclick="closeNewStreamModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">✕</button>
+            </div>
+
+            <div class="space-y-3.5 text-xs">
+                <div>
+                    <label class="block font-semibold text-slate-300 mb-1">Tên luồng live:</label>
+                    <input type="text" id="new-stream-title" placeholder="Ví dụ: Live Bán Áo Thun Ca Sáng" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-sky-500 font-mono">
+                </div>
+
+                <div>
+                    <label class="block font-semibold text-slate-300 mb-1">Chọn Video phát sóng (Từ kho Cloud của bạn): *</label>
+                    <select id="new-stream-video" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-sky-500 font-mono">
+                        <option value="">-- Đang nạp danh sách video... --</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block font-semibold text-slate-300 mb-1">Nền tảng phát nhanh:</label>
+                    <div class="grid grid-cols-4 gap-2">
+                        <button type="button" onclick="setCloudStreamPreset('tiktok')" class="px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-900 hover:border-sky-500 text-[11px] font-semibold text-slate-300">🎵 TikTok</button>
+                        <button type="button" onclick="setCloudStreamPreset('shopee')" class="px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-900 hover:border-amber-500 text-[11px] font-semibold text-slate-300">🛍️ Shopee</button>
+                        <button type="button" onclick="setCloudStreamPreset('facebook')" class="px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-900 hover:border-blue-500 text-[11px] font-semibold text-slate-300">📘 FB Live</button>
+                        <button type="button" onclick="setCloudStreamPreset('youtube')" class="px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-900 hover:border-red-500 text-[11px] font-semibold text-slate-300">▶️ YouTube</button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-semibold text-slate-300 mb-1">RTMP Server URL: *</label>
+                    <input type="text" id="new-stream-rtmp" placeholder="rtmp://..." class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-sky-500 font-mono">
+                </div>
+
+                <div>
+                    <label class="block font-semibold text-slate-300 mb-1">Stream Key: *</label>
+                    <input type="password" id="new-stream-key" placeholder="Dán Stream Key vào đây" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-sky-500 font-mono">
+                </div>
+
+                <div>
+                    <label class="block font-semibold text-slate-300 mb-1">Động cơ xử lý:</label>
+                    <select id="new-stream-mode" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-sky-500 font-mono">
+                        <option value="direct">⚡ Direct Stream Copy (Siêu nhẹ - 1% CPU - Chạy 24/7 khuyên dùng)</option>
+                        <option value="transcode">⚙️ Transcode x264 (Chuyển mã chuẩn hóa Full HD)</option>
+                    </select>
+                </div>
+
+                <div class="pt-1">
+                    <label class="flex items-center gap-2 cursor-pointer text-slate-300 font-semibold">
+                        <input type="checkbox" id="new-stream-autostart" checked class="rounded bg-slate-900 border-slate-700 text-sky-500 focus:ring-0">
+                        <span>Bắt đầu phát sóng ngay sau khi tạo</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-800 flex justify-end gap-2">
+                <button onclick="closeNewStreamModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-all">Hủy</button>
+                <button onclick="submitCreateNewStream()" class="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-sky-600/30 uppercase tracking-wider transition-all">Lưu & Khởi Chạy</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: XEM NHẬT KÝ LUỒNG LIVE (REALTIME LOGS) -->
+    <div id="modal-stream-logs" class="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-50 hidden p-4">
+        <div class="glass w-full max-w-2xl rounded-2xl p-6 border border-slate-800 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+                <h3 id="stream-logs-title" class="text-sm font-black text-amber-400 font-mono flex items-center gap-2">
+                    <span>📜 Nhật Ký Luồng Trực Tuyến</span>
+                </h3>
+                <button onclick="closeStreamLogsModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">✕</button>
+            </div>
+            
+            <div id="stream-logs-box" class="terminal p-4 rounded-xl text-[11px] text-emerald-400 font-mono h-80 overflow-y-auto space-y-1 select-text">
+                <span class="text-slate-600 italic">Đang kết nối nhật ký luồng...</span>
+            </div>
+
+            <div class="pt-2 border-t border-slate-800 flex justify-end">
+                <button onclick="closeStreamLogsModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-all">Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: TẠO TÀI KHOẢN KHÁCH HÀNG MỚI (ADMIN ONLY) -->
+    <div id="modal-new-user" class="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-50 hidden p-4">
+        <div class="glass w-full max-w-md rounded-2xl p-6 border border-purple-500/40 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+                <h3 class="text-sm font-black uppercase text-purple-400 flex items-center gap-2">
+                    <span>➕ Thêm Tài Khoản Khách Hàng Mới</span>
+                </h3>
+                <button onclick="closeNewUserModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">✕</button>
+            </div>
+
+            <div class="space-y-3 text-xs">
+                <div>
+                    <label class="block font-semibold text-slate-300 mb-1">Tên đăng nhập (Username): *</label>
+                    <input type="text" id="nu-username" placeholder="Ví dụ: khach_shop_a" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500 font-mono">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-300 mb-1">Mật khẩu khởi tạo: *</label>
+                    <input type="password" id="nu-password" placeholder="Tối thiểu 6 ký tự" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500 font-mono">
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-300 mb-1">Tên hiển thị (Tên Khách / Tên Shop):</label>
+                    <input type="text" id="nu-name" placeholder="Ví dụ: Shop Thời Trang Bella" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold text-slate-300 mb-1">Số luồng tối đa:</label>
+                        <input type="number" id="nu-streams" value="2" min="1" max="50" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500 font-mono">
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-300 mb-1">Dung lượng ổ (MB):</label>
+                        <input type="number" id="nu-disk" value="10240" min="500" step="1024" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500 font-mono">
+                        <span class="text-[10px] text-slate-500">10,240 MB = 10 GB</span>
+                    </div>
+                </div>
+                <div>
+                    <label class="block font-semibold text-slate-300 mb-1">Vai trò:</label>
+                    <select id="nu-role" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500 font-mono">
+                        <option value="client">Khách hàng thông thường (Client)</option>
+                        <option value="admin">Quản trị viên hệ thống (Admin)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-800 flex justify-end gap-2">
+                <button onclick="closeNewUserModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-all">Hủy</button>
+                <button onclick="submitCreateUser()" class="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-purple-600/30 uppercase tracking-wider transition-all">Tạo Tài Khoản</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- V4 Cloud Broadcast Controller Script -->
+    <script src="/static/v4_app.js"></script>
+
 </body>
 </html>

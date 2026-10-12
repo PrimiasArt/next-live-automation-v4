@@ -1,72 +1,62 @@
 import os
 import sys
 import threading
-import webbrowser
 import multiprocessing
 from config import WEB_HOST, WEB_PORT
 from core.state import state
-from core.obs_engine import engine
+from core.auth_manager import auth_manager
+from core.cloud_stream_engine import cloud_stream_engine
 from core.tunnel_manager import tunnel_manager
 from web.app import create_app
 
 def on_tunnel_ready(public_url):
-    print("\n" + "=" * 70)
-    print("🎉 HỆ THỐNG LIVE AUTOMATION ĐÃ ONLINE TOÀN CẦU!")
-    print("=" * 70)
-    print(f"📱 LINK WEB ĐIỀU KHIỂN TỪ XA (MỞ TRÊN ĐIỆN THOẠI/4G Ở BẤT CỨ ĐÂU):")
+    print("\n" + "=" * 75)
+    print("🎉 HỆ THỐNG NEXT LIVE AUTOMATION V4 CLOUD SAAS ĐÃ TRỰC TUYẾN!")
+    print("=" * 75)
+    print(f"📱 TRUY CẬP TỪ XA QUA INTERNET (ĐIỆN THOẠI / LAPTOP BẤT KỲ):")
     print(f"👉 {public_url}")
-    print("=" * 70)
-    print(f"💻 HOẶC TRUY CẬP TRỰC TIẾP TRÊN MÁY NÀY:")
-    print(f"👉 http://localhost:{WEB_PORT}")
-    print("=" * 70 + "\n")
-    # Tự động mở trình duyệt vào link web online
-    webbrowser.open(public_url)
+    print("=" * 75)
+    print(f"🔑 TÀI KHOẢN ADMIN MẶC ĐỊNH:")
+    print(f"   - Tên đăng nhập: admin")
+    print(f"   - Mật khẩu:      admin@2026")
+    print("=" * 75)
+    print(f"💻 HOẶC TRUY CẬP NỘI BỘ: http://localhost:{WEB_PORT}")
+    print("=" * 75 + "\n")
 
 def main():
     multiprocessing.freeze_support()
 
-    print("=" * 70)
-    print("🚀 KHỞI ĐỘNG HỆ THỐNG: HLC CLOUD - STREAM PROCESSOR AUTOMATION")
-    print("=" * 70)
-    print("⏸️  Hệ thống ở chế độ CHỜ (Standby Mode) - Sẵn sàng kết nối Bộ Xử Lý Luồng.")
-    print("🌐 Đang tự động kích hoạt đường truyền Web Online (Cloudflare Tunnel)...")
+    print("=" * 75)
+    print("🚀 KHỞI ĐỘNG HỆ THỐNG: NEXT LIVE AUTOMATION V4 - CLOUD BROADCAST SAAS")
+    print("=" * 75)
+    print(f"⚡ Động cơ: Cloud Direct Stream Engine + Multi-Tenant Isolation")
+    print(f"👥 Hệ thống phân quyền: Đã khởi tạo ({len(auth_manager.users)} tài khoản)")
 
-    # 0. Tự động kiểm tra và khởi chạy Stream Processor ở chế độ ngầm (Silent Tray)
-    from core.stream_process_manager import process_manager
-    is_running, pid = process_manager.get_process_info()
-    if not is_running:
-        print("⚙️  Stream Processor chưa bật -> Tự động khởi chạy ngầm (System Tray)...")
-        res = process_manager.start_processor(minimize_to_tray=True)
-        if res.get("success"):
-            print(f"✅ Stream Processor đã khởi chạy ngầm thành công (PID: {res.get('pid')})")
+    # 1. Kiểm tra Stream Processor cục bộ (nếu có)
+    try:
+        from core.stream_process_manager import process_manager
+        is_running, pid = process_manager.get_process_info()
+        if not is_running:
+            res = process_manager.start_processor(minimize_to_tray=True)
+            if res.get("success"):
+                print(f"✅ Local Stream Processor đã khởi chạy ngầm (PID: {res.get('pid')})")
         else:
-            print(f"⚠️ {res.get('message')}")
-    else:
-        print(f"✅ Stream Processor đang hoạt động ngầm (PID: {pid})")
+            print(f"✅ Local Stream Processor đang chạy (PID: {pid})")
+    except Exception as e:
+        print(f"ℹ️  Chế độ Cloud Headless (Không cần Stream Processor màn hình): {e}")
 
-    # 1. Khởi tạo Flask App
+    # 2. Khởi tạo Flask App
     app = create_app()
-
-    # 2. Chạy Web Server Flask trên Daemon Thread
-    def run_server():
-        try:
-            app.run(host=WEB_HOST, port=WEB_PORT, debug=False, use_reloader=False)
-        except Exception as e:
-            print(f"❌ Lỗi khởi chạy Web Server: {e}")
-            sys.exit(1)
-
-    web_thread = threading.Thread(target=run_server, daemon=True)
-    web_thread.start()
 
     # 3. Kích hoạt Tunnel tự động lấy Public Link
     tunnel_manager.start_tunnel(local_port=WEB_PORT, on_url_ready=on_tunnel_ready)
 
-    # 4. Khởi chạy vòng lặp điều khiển OBS Engine trên Main Thread
+    # 4. Chạy Web Server Flask
+    print(f"🌐 Web Server đang lắng nghe tại: http://{WEB_HOST}:{WEB_PORT}")
     try:
-        engine.start_loop()
+        app.run(host=WEB_HOST, port=WEB_PORT, debug=False, use_reloader=False)
     except (KeyboardInterrupt, SystemExit):
-        print("\n🛑 Đang dừng hệ thống HLC Engine...")
-        engine.running = False
+        print("\n🛑 Đang dừng hệ thống Next Live Automation v4...")
         tunnel_manager.stop_tunnel()
         sys.exit(0)
 
