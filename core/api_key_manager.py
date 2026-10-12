@@ -47,7 +47,7 @@ class ApiKeyManager:
         admin_entry = {
             "key": MASTER_ADMIN_KEY,
             "id": "admin",
-            "name": "Quản Trị Viên (Admin Master)",
+            "name": "Master Key (Trạm Phát Sóng Chính)",
             "role": "admin",
             "max_streams": 20,
             "disk_quota_mb": 102400, # 100 GB

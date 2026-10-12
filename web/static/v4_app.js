@@ -90,19 +90,10 @@ function onLoginSuccess() {
 function updateUserHeaderUI() {
     if (!currentUser) return;
     const nameEl = document.getElementById('v4-user-name');
-    const roleEl = document.getElementById('v4-user-role-badge');
     const streamsEl = document.getElementById('v4-quota-streams');
     const diskEl = document.getElementById('v4-quota-disk');
 
     if (nameEl) nameEl.innerText = currentUser.name || currentUser.id;
-    if (roleEl) {
-        roleEl.innerText = currentUser.role.toUpperCase();
-        if (currentUser.role === 'admin') {
-            roleEl.className = "text-[9px] px-1.5 py-0.5 rounded font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40";
-        } else {
-            roleEl.className = "text-[9px] px-1.5 py-0.5 rounded font-mono font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40";
-        }
-    }
     if (streamsEl) streamsEl.innerText = `${currentUser.active_streams || 0}/${currentUser.max_streams || 1}`;
     if (diskEl) diskEl.innerText = `${(currentUser.disk_usage_mb || 0).toLocaleString()} MB / ${(currentUser.disk_quota_mb || 10240).toLocaleString()} MB`;
 }
@@ -149,7 +140,7 @@ async function validateCloudKey() {
 }
 
 async function logoutV4() {
-    if (!confirm("Bạn có chắc chắn muốn ngắt kết nối API Key này?")) return;
+    if (!confirm("Bạn có muốn đổi mã khóa truy cập khác?")) return;
     try {
         await fetch('/api/auth/logout', { method: 'POST', headers: getAuthHeaders() });
     } catch (e) {}
@@ -694,7 +685,7 @@ function quickStreamWithVideo(filename) {
 }
 
 
-// --- TAB 4: QUẢN TRỊ HỆ THỐNG & API KEYS (ADMIN PORTAL) ---
+// --- TAB 4: QUẢN LÝ KHÓA PHÁT SÓNG (LICENSE KEYS) ---
 
 async function loadAdminPanel() {
     if (!currentUser || currentUser.role !== 'admin') return;
@@ -735,37 +726,33 @@ function renderAdminKeysTable(keys) {
 
     let html = '';
     keys.forEach(k => {
-        const isAdmin = k.role === 'admin';
-        const roleTag = isAdmin 
-            ? `<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40">ADMIN MASTER</span>`
-            : `<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40">CLIENT API</span>`;
+        const isMaster = k.role === 'admin' || k.key === 'HLC_ADMIN_MASTER_2026';
 
         html += `
             <tr class="border-b border-slate-800/80 hover:bg-slate-900/40 transition-all text-xs">
                 <td class="py-3 px-4 font-mono font-bold text-white flex items-center gap-2">
                     <span class="truncate max-w-[200px]" title="${k.key}">${k.key}</span>
-                    <button onclick="copyToClipboard('${k.key}')" class="p-1 rounded bg-slate-800 hover:text-sky-300 text-slate-400 cursor-pointer" title="Sao chép API Key">
+                    <button onclick="copyToClipboard('${k.key}')" class="p-1 rounded bg-slate-800 hover:text-sky-300 text-slate-400 cursor-pointer" title="Sao chép Mã Khóa">
                         📋
                     </button>
                 </td>
                 <td class="py-3 px-4 text-slate-200 font-semibold">${k.name}</td>
-                <td class="py-3 px-4">${roleTag}</td>
                 <td class="py-3 px-4 font-mono font-bold text-sky-400">${k.active_streams || 0} / ${k.max_streams}</td>
                 <td class="py-3 px-4 font-mono text-slate-300">${(k.disk_usage_mb || 0).toLocaleString()} MB / ${(k.disk_quota_mb || 0).toLocaleString()} MB</td>
                 <td class="py-3 px-4">
                     <span class="text-[10px] font-bold ${k.status === 'active' ? 'text-emerald-400' : 'text-rose-400'} uppercase">
-                        ${k.status === 'active' ? '● Hoạt động' : '○ Bị khóa'}
+                        ${k.status === 'active' ? '● Hoạt động' : '○ Tạm khóa'}
                     </span>
                 </td>
                 <td class="py-3 px-4 text-right space-x-2">
-                    ${!isAdmin ? `
+                    ${!isMaster ? `
                         <button onclick="adminToggleKeyStatus('${k.key}', '${k.status}')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold transition-all cursor-pointer">
                             ${k.status === 'active' ? 'Khóa' : 'Mở'}
                         </button>
                         <button onclick="adminDeleteKey('${k.key}')" class="px-2 py-1 rounded bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 text-[11px] font-bold transition-all cursor-pointer">
                             Xóa
                         </button>
-                    ` : `<span class="text-slate-600 italic text-[11px]">Master Key</span>`}
+                    ` : `<span class="text-amber-400 font-semibold text-[11px]">Khóa Gốc (Master)</span>`}
                 </td>
             </tr>
         `;
@@ -787,7 +774,7 @@ function renderAdminGlobalStreams(streams) {
     streams.forEach(s => {
         html += `
             <tr class="border-b border-slate-800 text-xs">
-                <td class="py-2.5 px-3 font-mono font-bold text-sky-400">${s.username}</td>
+                <td class="py-2.5 px-3 font-mono font-bold text-sky-400">${s.username || s.name || 'Kênh'}</td>
                 <td class="py-2.5 px-3 text-slate-200 font-semibold">${s.title}</td>
                 <td class="py-2.5 px-3 font-mono text-slate-400 truncate max-w-[150px]">${s.input_file}</td>
                 <td class="py-2.5 px-3">
@@ -827,7 +814,7 @@ async function submitCreateApiKey() {
     const diskMb = parseInt(document.getElementById('nk-disk').value) || 10240;
 
     if (!name) {
-        alert("Vui lòng nhập Tên khách hàng / Tên Shop!");
+        alert("Vui lòng nhập Tên Kênh / Shop!");
         return;
     }
 
@@ -847,9 +834,9 @@ async function submitCreateApiKey() {
             closeNewKeyModal();
             loadAdminPanel();
             const createdKey = data.key_data.key;
-            alert(`🎉 CẤP API KEY THÀNH CÔNG!\n\nKhách hàng: ${name}\nMã API Key: ${createdKey}\n\n👉 Bạn hãy copy API Key này gửi cho khách hàng đăng nhập.`);
+            alert(`🎉 CẤP MÃ KHÓA THÀNH CÔNG!\n\nKênh / Shop: ${name}\nMã Khóa: ${createdKey}\n\n👉 Bạn hãy gửi mã này cho người dùng để kích hoạt ứng dụng.`);
         } else {
-            alert(data.message || "Không thể cấp API Key");
+            alert(data.message || "Không thể cấp Mã Khóa");
         }
     } catch (e) {
         alert("Lỗi kết nối: " + e.message);
@@ -876,7 +863,7 @@ async function adminToggleKeyStatus(key, currentStatus) {
 }
 
 async function adminDeleteKey(key) {
-    if (!confirm(`XÁC NHẬN: Bạn có chắc chắn muốn xóa vĩnh viễn API Key "${key}"?`)) return;
+    if (!confirm(`XÁC NHẬN: Bạn có chắc chắn muốn xóa vĩnh viễn Mã Khóa "${key}"?`)) return;
     try {
         const res = await fetch(`/api/admin/keys/${encodeURIComponent(key)}`, {
             method: 'DELETE',
@@ -886,7 +873,7 @@ async function adminDeleteKey(key) {
         if (data.success) {
             loadAdminPanel();
         } else {
-            alert(data.message || "Lỗi xóa API Key");
+            alert(data.message || "Lỗi xóa Mã Khóa");
         }
     } catch (e) {
         alert("Lỗi kết nối: " + e.message);
@@ -912,9 +899,9 @@ async function adminKillStream(streamId) {
 
 function copyToClipboard(text) {
     navigator.clipboard.writeText(text).then(() => {
-        alert("✅ Đã sao chép API Key vào Clipboard:\n" + text);
+        alert("✅ Đã sao chép Mã Khóa vào Clipboard:\n" + text);
     }).catch(() => {
-        prompt("Sao chép API Key:", text);
+        prompt("Sao chép Mã Khóa:", text);
     });
 }
 
