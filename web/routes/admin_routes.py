@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from web.routes.auth_routes import admin_required
-from core.auth_manager import auth_manager
+from core.api_key_manager import api_key_manager
 from core.cloud_stream_engine import cloud_stream_engine
 from core.media_manager import media_manager
 from core.system_monitor import system_monitor
@@ -11,9 +11,9 @@ admin_bp = Blueprint('admin', __name__)
 @admin_required
 def get_system_stats(admin_user):
     stats = system_monitor.get_stats()
-    all_streams = cloud_stream_engine.list_streams(admin_user["username"], is_admin=True)
+    all_streams = cloud_stream_engine.list_streams(admin_user["id"], is_admin=True)
     active_count = sum(1 for s in all_streams if s["status"] in ["starting", "running"])
-    
+
     return jsonify({
         "success": True,
         "system": stats,
@@ -24,44 +24,42 @@ def get_system_stats(admin_user):
         "all_streams": all_streams
     })
 
-@admin_bp.route('/api/admin/users', methods=['GET'])
+@admin_bp.route('/api/admin/keys', methods=['GET'])
 @admin_required
-def list_users(admin_user):
-    users = auth_manager.list_users()
+def list_api_keys(admin_user):
+    keys = api_key_manager.list_keys()
     enriched = []
-    for u in users:
-        uname = u["username"]
-        item = dict(u)
-        item["active_streams"] = cloud_stream_engine.get_user_active_count(uname)
-        item["disk_usage_mb"] = media_manager.get_user_disk_usage_mb(uname)
+    for k in keys:
+        uid = k["id"]
+        item = dict(k)
+        item["active_streams"] = cloud_stream_engine.get_user_active_count(uid)
+        item["disk_usage_mb"] = media_manager.get_user_disk_usage_mb(uid)
         enriched.append(item)
-    return jsonify({"success": True, "users": enriched})
+    return jsonify({"success": True, "keys": enriched})
 
-@admin_bp.route('/api/admin/users', methods=['POST'])
+@admin_bp.route('/api/admin/keys', methods=['POST'])
 @admin_required
-def create_user(admin_user):
+def create_api_key(admin_user):
     data = request.json or {}
-    res = auth_manager.create_user(
-        username=data.get('username', ''),
-        password=data.get('password', ''),
+    res = api_key_manager.create_client_key(
         name=data.get('name', ''),
-        role=data.get('role', 'client'),
+        custom_key=data.get('custom_key', None),
         max_streams=int(data.get('max_streams', 2)),
         disk_quota_mb=int(data.get('disk_quota_mb', 10240))
     )
     return jsonify(res)
 
-@admin_bp.route('/api/admin/users/<username>', methods=['PUT'])
+@admin_bp.route('/api/admin/keys/<path:key>', methods=['PUT'])
 @admin_required
-def update_user(admin_user, username):
+def update_api_key(admin_user, key):
     data = request.json or {}
-    res = auth_manager.update_user(username, data)
+    res = api_key_manager.update_key(key, data)
     return jsonify(res)
 
-@admin_bp.route('/api/admin/users/<username>', methods=['DELETE'])
+@admin_bp.route('/api/admin/keys/<path:key>', methods=['DELETE'])
 @admin_required
-def delete_user(admin_user, username):
-    res = auth_manager.delete_user(username)
+def delete_api_key(admin_user, key):
+    res = api_key_manager.delete_key(key)
     return jsonify(res)
 
 @admin_bp.route('/api/admin/kill-stream', methods=['POST'])
@@ -69,5 +67,5 @@ def delete_user(admin_user, username):
 def admin_kill_stream(admin_user):
     data = request.json or {}
     stream_id = data.get('stream_id', '')
-    res = cloud_stream_engine.stop_stream(admin_user["username"], stream_id, is_admin=True)
+    res = cloud_stream_engine.stop_stream(admin_user["id"], stream_id, is_admin=True)
     return jsonify(res)

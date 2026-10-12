@@ -2,7 +2,7 @@ import os
 import sys
 import threading
 import multiprocessing
-from config import WEB_HOST, WEB_PORT
+from config import WEB_HOST, WEB_PORT, ADMIN_API_KEY
 from core.state import state
 from core.auth_manager import auth_manager
 from core.cloud_stream_engine import cloud_stream_engine
@@ -16,9 +16,8 @@ def on_tunnel_ready(public_url):
     print(f"📱 TRUY CẬP TỪ XA QUA INTERNET (ĐIỆN THOẠI / LAPTOP BẤT KỲ):")
     print(f"👉 {public_url}")
     print("=" * 75)
-    print(f"🔑 TÀI KHOẢN ADMIN MẶC ĐỊNH:")
-    print(f"   - Tên đăng nhập: admin")
-    print(f"   - Mật khẩu:      admin@2026")
+    print(f"🔑 MASTER ADMIN API KEY:")
+    print(f"   👉 {ADMIN_API_KEY}")
     print("=" * 75)
     print(f"💻 HOẶC TRUY CẬP NỘI BỘ: http://localhost:{WEB_PORT}")
     print("=" * 75 + "\n")

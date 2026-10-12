@@ -8,9 +8,9 @@ media_bp = Blueprint('media', __name__)
 @media_bp.route('/api/media/list', methods=['GET'])
 @login_required
 def list_media(user):
-    username = user["username"]
-    files = media_manager.list_media(username)
-    usage_mb = media_manager.get_user_disk_usage_mb(username)
+    tenant_id = user.get("id") or user.get("key") or "default"
+    files = media_manager.list_media(tenant_id)
+    usage_mb = media_manager.get_user_disk_usage_mb(tenant_id)
     quota_mb = user.get("disk_quota_mb", 10240)
     
     return jsonify({
@@ -31,10 +31,10 @@ def upload_media(user):
     if file.filename == '':
         return jsonify({"success": False, "message": "Tên file rỗng"}), 400
 
-    username = user["username"]
+    tenant_id = user.get("id") or user.get("key") or "default"
     quota_mb = user.get("disk_quota_mb", 10240)
     
-    res = media_manager.save_upload(username, file, file.filename, max_quota_mb=quota_mb)
+    res = media_manager.save_upload(tenant_id, file, file.filename, max_quota_mb=quota_mb)
     return jsonify(res)
 
 @media_bp.route('/api/media/delete', methods=['DELETE'])
@@ -45,13 +45,15 @@ def delete_media(user):
     if not filename:
         return jsonify({"success": False, "message": "Thiếu tên file"}), 400
     
-    res = media_manager.delete_media(user["username"], filename)
+    tenant_id = user.get("id") or user.get("key") or "default"
+    res = media_manager.delete_media(tenant_id, filename)
     return jsonify(res)
 
 @media_bp.route('/api/media/file/<filename>', methods=['GET'])
 @login_required
 def get_media_file(user, filename):
-    filepath = media_manager.get_media_path(user["username"], filename)
+    tenant_id = user.get("id") or user.get("key") or "default"
+    filepath = media_manager.get_media_path(tenant_id, filename)
     if not filepath or not os.path.exists(filepath):
         return jsonify({"success": False, "message": "File không tồn tại"}), 404
     return send_file(filepath)

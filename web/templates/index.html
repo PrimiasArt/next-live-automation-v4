@@ -50,113 +50,19 @@
     </style>
 </head>
 <body class="p-6 min-h-screen flex flex-col justify-between">
-    <!-- Màn hình khóa xác thực Đa Người Dùng v4 Cloud SaaS -->
+    <!-- Màn hình khóa xác thực Cloud API Key (Duy nhất 1 ô nhập) -->
     <div id="auth" class="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50">
-        <div class="glass p-8 md:p-10 rounded-2xl w-[28rem] text-center border-t-4 border-sky-500 shadow-2xl relative">
-            <div class="inline-block p-3 rounded-full bg-sky-500/10 mb-3 border border-sky-500/30">
+        <div class="glass p-10 rounded-2xl w-[28rem] text-center border-t-4 border-sky-500 shadow-2xl relative">
+            <div class="inline-block p-3 rounded-full bg-sky-500/10 mb-4 border border-sky-500/30">
                 <svg class="w-8 h-8 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
             </div>
             <h1 class="text-3xl font-black neon-text mb-1 tracking-wider">HLC CLOUD</h1>
-            <p class="text-slate-400 text-xs mb-6 uppercase tracking-widest font-mono">NEXT LIVE AUTOMATION v4 CLOUD SAAS</p>
-
-            <!-- Login Form -->
-            <div id="v4-login-box" class="space-y-3.5 text-left">
-                <div>
-                    <label class="block text-xs font-semibold text-slate-300 mb-1">Tên đăng nhập:</label>
-                    <input type="text" id="v4-login-username" class="w-full p-3 bg-slate-900 border border-slate-700 rounded-xl text-white outline-none focus:border-sky-500 font-mono text-sm transition-all" placeholder="admin hoặc tên tài khoản">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-slate-300 mb-1">Mật khẩu:</label>
-                    <input type="password" id="v4-login-password" class="w-full p-3 bg-slate-900 border border-slate-700 rounded-xl text-white outline-none focus:border-sky-500 font-mono text-sm transition-all" placeholder="••••••••" onkeypress="if(event.key==='Enter') submitLoginV4()">
-                </div>
-                <button onclick="submitLoginV4()" class="w-full p-3.5 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-xl uppercase tracking-wider transition-all shadow-lg shadow-sky-600/30 text-xs cursor-pointer flex items-center justify-center gap-2">
-                    <span>ĐĂNG NHẬP HỆ THỐNG</span>
-                    <span>🚀</span>
-                </button>
-            </div>
-
-            <!-- Legacy Key Mode Toggle -->
-            <div class="mt-4 pt-3 border-t border-slate-800 text-center">
-                <button type="button" onclick="toggleLegacyKeyMode()" class="text-[11px] text-slate-500 hover:text-sky-400 underline cursor-pointer">
-                    Hoặc dùng Legacy Cloud API Key
-                </button>
-            </div>
-            <div id="legacy-key-box" class="hidden mt-3 space-y-3">
-                <input type="password" id="key-input" class="w-full p-3 bg-slate-900 border border-slate-700 rounded-xl text-center text-white outline-none focus:border-sky-500 tracking-widest font-mono text-xs transition-all" placeholder="NHẬP CLOUD API KEY">
-                <button onclick="validateCloudKey()" class="w-full p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl uppercase transition-all cursor-pointer">Kích Hoạt Key</button>
-            </div>
-
+            <p class="text-slate-400 text-xs mb-6 uppercase tracking-widest font-mono">DYNAMIC STREAM PROCESSOR AUTOMATION v4</p>
+            <input type="password" id="key-input" class="w-full p-3.5 bg-slate-900 border border-slate-700 rounded-xl mb-4 text-center text-white outline-none focus:border-sky-500 tracking-widest font-mono text-sm transition-all" placeholder="NHẬP CLOUD API KEY" onkeypress="if(event.key==='Enter') validateCloudKey()">
+            <button onclick="validateCloudKey()" class="w-full p-3.5 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-xl uppercase tracking-wider transition-all shadow-lg shadow-sky-600/30 cursor-pointer">KÍCH HOẠT HỆ THỐNG</button>
             <p id="error-msg" class="text-rose-400 mt-4 text-xs font-semibold hidden"></p>
         </div>
     </div>
-
-    <!-- Container Chính -->
-    <div class="max-w-7xl mx-auto w-full flex-grow">
-        <!-- Header -->
-        <header class="flex flex-wrap justify-between items-center gap-4 mb-6 pb-4 border-b border-slate-800">
-            <div class="flex items-center gap-4">
-                <div class="p-2.5 bg-sky-500/10 border border-sky-500/30 rounded-xl">
-                    <svg class="w-7 h-7 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                </div>
-                <div>
-                    <h1 class="text-3xl font-black tracking-tight">HLC <span class="neon-text">HYBRID CENTER</span> <span class="text-xs bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded border border-sky-500/40 align-middle">v3 ULTRA</span></h1>
-                    <div class="flex items-center gap-2 mt-1">
-                        <span id="status-badge" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-950/60 text-amber-400 border border-amber-700/50">
-                            🟡 CHẾ ĐỘ CHỜ (STANDBY)
-                        </span>
-                        <p class="text-slate-400 text-xs font-mono">AUTOMATED STREAM DISCOVERY PROTOCOL</p>
-                    </div>
-                </div>
-                <!-- Badge hiển thị Link Online tự động -->
-                <div id="public-link-box" class="hidden items-center gap-1.5 px-3 py-1.5 bg-emerald-950/40 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs shadow-lg">
-                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <span class="text-[11px] text-slate-300 font-semibold">Web Online:</span>
-                    <a id="public-link-url" href="#" target="_blank" class="font-mono text-sky-400 hover:underline truncate max-w-[190px]">Đang tạo link...</a>
-                    <button type="button" onclick="copyPublicLink()" class="p-1 hover:text-white bg-slate-800/80 rounded" title="Sao chép link gửi sang điện thoại">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Điều khiển Scene & Quota -->
-            <div class="flex flex-wrap gap-3 items-center">
-                <!-- STREAM PROCESSOR STATUS & CONTROLS POPOVER -->
-                <div class="relative inline-block text-left">
-                    <button id="processor-badge-btn" onclick="toggleProcessorPopover()" title="Quản lý Stream Processor ngầm" class="glass px-3 py-1.5 rounded-xl border border-emerald-500/40 text-emerald-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-lg shadow-emerald-950/30 cursor-pointer">
-                        <span id="processor-dot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                        <span id="processor-badge-text">Processor: Online</span>
-                        <svg class="w-3.5 h-3.5 ml-0.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                    </button>
-                    <!-- Dropdown Menu -->
-                    <div id="processor-popover" class="hidden absolute right-0 mt-2 w-64 rounded-2xl glass p-3.5 border border-slate-700 shadow-2xl z-50 space-y-3 bg-slate-900/95 backdrop-blur-xl">
-                        <div class="flex justify-between items-center border-b border-slate-800 pb-2">
-                            <span class="text-xs font-bold text-slate-200">Stream Processor Engine</span>
-                            <span id="processor-pid-tag" class="text-[10px] font-mono bg-slate-800 px-2 py-0.5 rounded text-sky-400 border border-slate-700">PID: ...</span>
-                        </div>
-                        <div class="text-[11px] text-slate-400 space-y-1">
-                            <div class="flex justify-between">
-                                <span>Tiến trình ngầm:</span>
-                                <span id="processor-proc-status" class="text-emerald-400 font-bold">Đang chạy</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span>Cổng kết nối:</span>
-                                <span class="text-sky-400 font-mono">Port 4455</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span>Giao diện:</span>
-                                <span class="text-slate-300 text-[10px]">Chạy ngầm (Tray)</span>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800">
-                            <button onclick="handleRestartProcessor()" class="px-2.5 py-1.5 rounded-lg bg-amber-600/20 hover:bg-amber-600 text-amber-300 hover:text-white border border-amber-500/40 text-[11px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer">
-                                🔄 Khởi Động Lại
-                            </button>
-                            <button id="processor-toggle-btn" onclick="handleToggleProcessor()" class="px-2.5 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 text-[11px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer">
-                                ⏹ Dừng Tiến Trình
-                            </button>
-                        </div>
-                    </div>
-                </div>
 
                 <!-- Bộ chọn Scene trực tiếp -->
                 <div class="glass px-3 py-1.5 rounded-xl border border-sky-500/40 flex items-center gap-2 shadow-lg">
@@ -350,24 +256,24 @@
                 </div>
             </div>
 
-            <!-- Bảng Quản Lý Khách Hàng -->
+            <!-- Bảng Quản Lý API Key Khách Hàng -->
             <div class="glass rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
                 <div class="p-4 border-b border-slate-800 flex justify-between items-center">
                     <div>
                         <h4 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                            <span>👥 Danh Sách Khách Hàng & Phân Quyền</span>
+                            <span>🔑 Quản Lý API Key Khách Hàng (Client API Keys)</span>
                         </h4>
-                        <p class="text-[11px] text-slate-400">Cấp tài khoản, giới hạn số luồng live và dung lượng ổ cứng cho từng khách.</p>
+                        <p class="text-[11px] text-slate-400">Cấp mã API Key cho từng khách, phân bổ số luồng live và dung lượng ổ cứng.</p>
                     </div>
-                    <button onclick="openNewUserModal()" class="px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-600/30 transition-all flex items-center gap-1.5 cursor-pointer">
-                        <span>➕ Thêm Khách Hàng</span>
+                    <button onclick="openNewKeyModal()" class="px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-600/30 transition-all flex items-center gap-1.5 cursor-pointer">
+                        <span>➕ Cấp API Key Mới</span>
                     </button>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse">
                         <thead>
                             <tr class="border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase bg-slate-950/60">
-                                <th class="py-3 px-4">Tài Khoản</th>
+                                <th class="py-3 px-4">Mã API Key</th>
                                 <th class="py-3 px-4">Tên Khách / Shop</th>
                                 <th class="py-3 px-4">Vai Trò</th>
                                 <th class="py-3 px-4">Số Luồng (Đang Live / Max)</th>
@@ -376,7 +282,7 @@
                                 <th class="py-3 px-4 text-right">Thao Tác</th>
                             </tr>
                         </thead>
-                        <tbody id="admin-users-table">
+                        <tbody id="admin-keys-table">
                             <!-- Rendered by v4_app.js -->
                         </tbody>
                     </table>
@@ -2488,52 +2394,42 @@
         </div>
     </div>
 
-    <!-- MODAL: TẠO TÀI KHOẢN KHÁCH HÀNG MỚI (ADMIN ONLY) -->
-    <div id="modal-new-user" class="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-50 hidden p-4">
+    <!-- MODAL: CẤP API KEY MỚI CHO KHÁCH HÀNG (ADMIN ONLY) -->
+    <div id="modal-new-key" class="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-50 hidden p-4">
         <div class="glass w-full max-w-md rounded-2xl p-6 border border-purple-500/40 shadow-2xl space-y-4">
             <div class="flex justify-between items-center pb-3 border-b border-slate-800">
                 <h3 class="text-sm font-black uppercase text-purple-400 flex items-center gap-2">
-                    <span>➕ Thêm Tài Khoản Khách Hàng Mới</span>
+                    <span>➕ Cấp API Key Mới Cho Khách Hàng</span>
                 </h3>
-                <button onclick="closeNewUserModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">✕</button>
+                <button onclick="closeNewKeyModal()" class="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer">✕</button>
             </div>
 
-            <div class="space-y-3 text-xs">
+            <div class="space-y-3.5 text-xs">
                 <div>
-                    <label class="block font-semibold text-slate-300 mb-1">Tên đăng nhập (Username): *</label>
-                    <input type="text" id="nu-username" placeholder="Ví dụ: khach_shop_a" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500 font-mono">
+                    <label class="block font-semibold text-slate-300 mb-1">Tên khách hàng / Tên Shop: *</label>
+                    <input type="text" id="nk-name" placeholder="Ví dụ: Shop Thời Trang Bella" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500">
                 </div>
                 <div>
-                    <label class="block font-semibold text-slate-300 mb-1">Mật khẩu khởi tạo: *</label>
-                    <input type="password" id="nu-password" placeholder="Tối thiểu 6 ký tự" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500 font-mono">
-                </div>
-                <div>
-                    <label class="block font-semibold text-slate-300 mb-1">Tên hiển thị (Tên Khách / Tên Shop):</label>
-                    <input type="text" id="nu-name" placeholder="Ví dụ: Shop Thời Trang Bella" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500">
+                    <label class="block font-semibold text-slate-300 mb-1">Mã API Key (Tùy chọn, để trống sẽ tự sinh mã):</label>
+                    <input type="text" id="nk-custom-key" placeholder="Ví dụ: HLC_SHOP_BELLA_VIP" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500 font-mono">
+                    <span class="text-[10px] text-slate-500">Mã này dùng để gửi cho khách nhập vào ô đăng nhập.</span>
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="block font-semibold text-slate-300 mb-1">Số luồng tối đa:</label>
-                        <input type="number" id="nu-streams" value="2" min="1" max="50" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500 font-mono">
+                        <input type="number" id="nk-streams" value="2" min="1" max="50" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500 font-mono">
                     </div>
                     <div>
                         <label class="block font-semibold text-slate-300 mb-1">Dung lượng ổ (MB):</label>
-                        <input type="number" id="nu-disk" value="10240" min="500" step="1024" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500 font-mono">
+                        <input type="number" id="nk-disk" value="10240" min="500" step="1024" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500 font-mono">
                         <span class="text-[10px] text-slate-500">10,240 MB = 10 GB</span>
                     </div>
-                </div>
-                <div>
-                    <label class="block font-semibold text-slate-300 mb-1">Vai trò:</label>
-                    <select id="nu-role" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500 font-mono">
-                        <option value="client">Khách hàng thông thường (Client)</option>
-                        <option value="admin">Quản trị viên hệ thống (Admin)</option>
-                    </select>
                 </div>
             </div>
 
             <div class="pt-3 border-t border-slate-800 flex justify-end gap-2">
-                <button onclick="closeNewUserModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-all">Hủy</button>
-                <button onclick="submitCreateUser()" class="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-purple-600/30 uppercase tracking-wider transition-all">Tạo Tài Khoản</button>
+                <button onclick="closeNewKeyModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-all cursor-pointer">Hủy</button>
+                <button onclick="submitCreateApiKey()" class="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-purple-600/30 uppercase tracking-wider transition-all cursor-pointer">Cấp API Key</button>
             </div>
         </div>
     </div>

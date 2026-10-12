@@ -6,15 +6,16 @@ Hệ thống phát sóng livestream tự động hóa **100% trên Cloud**, gi�
 
 ## 🌟 Tính Năng Nổi Bật của Phiên Bản v4
 
-### 1. 🛡️ Phân Quyền & Cách Ly Đa Khách Hàng (Multi-Tenancy)
-- **Tài khoản riêng biệt**: Mỗi khách hàng có tên đăng nhập, mật khẩu và giao diện quản lý riêng.
-- **Dữ liệu độc lập 100%**: Khách A không bao giờ nhìn thấy hoặc can thiệp được vào video, stream key hay luồng phát sóng của Khách B.
-- **Quản trị viên (Admin Portal)**:
-  - Cấp tài khoản mới cho khách hàng.
-  - Phân bổ số luồng tối đa (Stream Quota) cho từng khách (ví dụ: Khách A mua gói 1 luồng, Khách B mua 2 luồng).
-  - Giới hạn dung lượng ổ cứng lưu trữ video (Disk Quota).
+### 1. 🛡️ Phân Quyền & Quản Lý Bằng API Key Đơn Giản (API Key Multi-Tenancy)
+- **Đăng nhập siêu tốc bằng 1 ô API Key duy nhất**: Không cần tên đăng nhập hay mật khẩu rườm rà.
+- **Master Admin API Key**: 1 mã API Key tối cao dành cho bạn (`HLC_ADMIN_MASTER_2026`):
+  - Toàn quyền tạo và cấp mã API Key mới cho từng khách hàng chỉ với 1 click.
+  - Phân bổ số luồng live tối đa (Stream Quota) và dung lượng ổ cứng (Disk Quota) cho từng khách.
   - Giám sát CPU, RAM, Disk của VPS thời gian thực.
   - Dừng khẩn cấp bất kỳ luồng live nào trên toàn server.
+- **Client API Key (Mỗi khách 1 Key)**:
+  - Khách hàng chỉ cần dán mã API Key được cấp vào web để kích hoạt không gian riêng.
+  - Dữ liệu hoàn toàn độc lập 100%: Khách A không bao giờ nhìn thấy hoặc can thiệp vào video, stream key hay luồng phát của Khách B.
 
 ### 2. ⚡ Động Cơ Stream Copy Siêu Nhẹ (Direct Pass-Through)
 - Sử dụng công nghệ **Direct Stream Copy**: Đọc trực tiếp file MP4/MKV và đẩy gói tin lên RTMP mà **không giải mã/nén lại video**.
@@ -43,9 +44,9 @@ Hệ thống phát sóng livestream tự động hóa **100% trên Cloud**, gi�
    ```
    *(hoặc chạy lệnh: `python run.py`)*
 3. Mở trình duyệt truy cập: `http://localhost:5000`
-4. Đăng nhập với tài khoản **Admin mặc định**:
-   - **Tên đăng nhập**: `admin`
-   - **Mật khẩu**: `admin@2026`
+4. Dán **Master Admin API Key** vào ô đăng nhập:
+   - **Key**: `HLC_ADMIN_MASTER_2026`
+   *(Hoặc dán key khách demo: `HLC_DEMO_CLIENT_KEY`)*
 
 ---
 
