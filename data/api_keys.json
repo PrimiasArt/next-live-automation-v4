@@ -31,5 +31,16 @@
     "quota_remaining": 999999,
     "status": "active",
     "created_at": "2026-10-12 12:02:17"
+  },
+  "HLC_HXBL_8BD31A33": {
+    "key": "HLC_HXBL_8BD31A33",
+    "id": "hxbl",
+    "name": "HXBL",
+    "role": "client",
+    "max_streams": 2,
+    "disk_quota_mb": 10240,
+    "quota_remaining": 1000,
+    "status": "active",
+    "created_at": "2026-10-12 12:02:46"
   }
 }

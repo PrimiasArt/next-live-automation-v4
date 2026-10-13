@@ -64,13 +64,22 @@ function onLoginSuccess() {
 
     // Hiển thị tab Admin nếu là Admin API Key
     const adminTabBtn = document.getElementById('v4-tab-btn-admin');
+    const adminMobileBtn = document.getElementById('v4-tab-btn-admin-mobile');
+    const isAdmin = currentUser && currentUser.role === 'admin';
     if (adminTabBtn) {
-        if (currentUser.role === 'admin') {
+        if (isAdmin) {
             adminTabBtn.classList.remove('hidden');
             adminTabBtn.classList.add('flex');
         } else {
             adminTabBtn.classList.add('hidden');
             adminTabBtn.classList.remove('flex');
+        }
+    }
+    if (adminMobileBtn) {
+        if (isAdmin) {
+            adminMobileBtn.classList.remove('hidden');
+        } else {
+            adminMobileBtn.classList.add('hidden');
         }
     }
 
@@ -93,9 +102,26 @@ function updateUserHeaderUI() {
     const streamsEl = document.getElementById('v4-quota-streams');
     const diskEl = document.getElementById('v4-quota-disk');
 
+    const usedMb = currentUser.disk_usage_mb || 0;
+    const totalMb = currentUser.disk_quota_mb || 10240;
+    const pct = Math.min(100, Math.round((usedMb / Math.max(1, totalMb)) * 100));
+    const totalFormatted = totalMb >= 1024 ? (totalMb / 1024).toFixed(0) + ' GB' : totalMb + ' MB';
+
     if (nameEl) nameEl.innerText = currentUser.name || currentUser.id;
-    if (streamsEl) streamsEl.innerText = `${currentUser.active_streams || 0}/${currentUser.max_streams || 1}`;
-    if (diskEl) diskEl.innerText = `${(currentUser.disk_usage_mb || 0).toLocaleString()} MB / ${(currentUser.disk_quota_mb || 10240).toLocaleString()} MB`;
+    if (streamsEl) streamsEl.innerText = `${currentUser.active_streams || 0}/${currentUser.max_streams || 20}`;
+    if (diskEl) diskEl.innerText = `${usedMb.toLocaleString()} MB / ${totalFormatted}`;
+
+    const heroActive = document.getElementById('v4-hero-active-streams');
+    const heroMax = document.getElementById('v4-hero-max-streams');
+    if (heroActive) heroActive.innerText = currentUser.active_streams || 0;
+    if (heroMax) heroMax.innerText = currentUser.max_streams || 20;
+
+    const heroDiskVal = document.getElementById('v4-hero-disk-val');
+    const heroDiskPct = document.getElementById('v4-hero-disk-pct');
+    const heroDiskBar = document.getElementById('v4-hero-disk-bar');
+    if (heroDiskVal) heroDiskVal.innerText = `${usedMb.toLocaleString()} MB / ${totalFormatted}`;
+    if (heroDiskPct) heroDiskPct.innerText = `${pct}%`;
+    if (heroDiskBar) heroDiskBar.style.width = `${pct}%`;
 }
 
 // Hàm xác thực bằng Cloud API Key (Duy nhất 1 ô nhập)
@@ -161,19 +187,19 @@ function switchV4Tab(tabId) {
     if (targetPanel) targetPanel.classList.remove('hidden');
 
     const tabBtns = [
-        { id: 'v4-tab-btn-streams', tab: 'cloud-streams', activeClass: 'bg-sky-600/20 text-sky-300 border-sky-500/40' },
-        { id: 'v4-tab-btn-media', tab: 'cloud-media', activeClass: 'bg-emerald-600/20 text-emerald-300 border-emerald-500/40' },
-        { id: 'v4-tab-btn-processor', tab: 'processor-studio', activeClass: 'bg-indigo-600/20 text-indigo-300 border-indigo-500/40' },
-        { id: 'v4-tab-btn-admin', tab: 'admin-panel', activeClass: 'bg-purple-600/20 text-purple-300 border-purple-500/40' }
+        { id: 'v4-tab-btn-streams', tab: 'cloud-streams', activeClass: 'bg-sky-500/15 text-sky-300 border-sky-500/40 shadow-sm shadow-sky-500/20' },
+        { id: 'v4-tab-btn-media', tab: 'cloud-media', activeClass: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40 shadow-sm shadow-emerald-500/20' },
+        { id: 'v4-tab-btn-processor', tab: 'processor-studio', activeClass: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/40 shadow-sm shadow-indigo-500/20' },
+        { id: 'v4-tab-btn-admin', tab: 'admin-panel', activeClass: 'bg-purple-500/15 text-purple-300 border-purple-500/40 shadow-sm shadow-purple-500/20' }
     ];
 
     tabBtns.forEach(btnInfo => {
         const el = document.getElementById(btnInfo.id);
         if (!el) return;
         if (btnInfo.tab === tabId) {
-            el.className = `px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 border transition-all cursor-pointer whitespace-nowrap shadow-lg ${btnInfo.activeClass}`;
+            el.className = `px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-2 border transition-all cursor-pointer whitespace-nowrap ${btnInfo.activeClass}`;
         } else {
-            el.className = `px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 border bg-slate-900/60 text-slate-400 border-slate-800 hover:text-white hover:bg-slate-800/80 transition-all cursor-pointer whitespace-nowrap`;
+            el.className = `px-3.5 py-1.5 rounded-xl font-medium text-xs flex items-center gap-2 border border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all cursor-pointer whitespace-nowrap`;
         }
     });
 
@@ -208,8 +234,14 @@ async function loadCloudStreams(showLoading = false) {
 
             const quotaStreams = document.getElementById('v4-quota-streams');
             if (quotaStreams && currentUser) {
-                quotaStreams.innerText = `${data.active_count || 0}/${data.max_streams || currentUser.max_streams || 1}`;
+                quotaStreams.innerText = `${data.active_count || 0}/${data.max_streams || currentUser.max_streams || 20}`;
             }
+
+            const heroActive = document.getElementById('v4-hero-active-streams');
+            if (heroActive) heroActive.innerText = data.active_count || 0;
+
+            const heroMax = document.getElementById('v4-hero-max-streams');
+            if (heroMax) heroMax.innerText = data.max_streams || (currentUser ? currentUser.max_streams : 20);
 
             renderCloudStreams(cloudStreamsList);
         }
@@ -224,13 +256,29 @@ function renderCloudStreams(streams) {
 
     if (!streams || streams.length === 0) {
         container.innerHTML = `
-            <div class="glass p-10 rounded-2xl text-center border border-dashed border-slate-700/80 space-y-3">
-                <div class="text-4xl">📡</div>
-                <h4 class="text-base font-bold text-slate-200">Chưa có luồng phát sóng nào</h4>
-                <p class="text-xs text-slate-400 max-w-md mx-auto">Bạn có thể tạo luồng phát mới, chọn video từ kho Cloud và điền Stream Key để phát 24/7 trực tiếp từ Data Center.</p>
-                <button onclick="openNewStreamModal()" class="px-5 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-sky-600/30 uppercase tracking-wider transition-all cursor-pointer">
-                    ➕ Khởi Tạo Luồng Live Đầu Tiên
-                </button>
+            <div class="glass p-12 rounded-3xl text-center border border-dashed border-slate-800 relative overflow-hidden group">
+                <div class="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-96 bg-sky-500/10 rounded-full blur-3xl pointer-events-none group-hover:bg-sky-500/15 transition-all"></div>
+                <div class="relative z-10 max-w-lg mx-auto space-y-4">
+                    <div class="inline-flex p-4 rounded-2xl bg-gradient-to-br from-sky-500/20 to-indigo-500/10 border border-sky-500/30 text-sky-400 shadow-xl shadow-sky-500/10">
+                        <svg class="w-10 h-10 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/></svg>
+                    </div>
+                    <div>
+                        <h4 class="text-lg font-bold text-white tracking-tight">Chưa Có Luồng Phát Sóng Nào Hoạt Động</h4>
+                        <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                            Khởi tạo luồng phát mới từ kho video Cloud để phát 24/7 với đường truyền 1 Gbps độc lập — máy tính tắt luồng vẫn duy trì liên tục.
+                        </p>
+                    </div>
+                    <div class="flex flex-wrap justify-center gap-2 pt-1 text-[11px] text-slate-300">
+                        <span class="px-2.5 py-1 rounded-full bg-slate-900/80 border border-slate-800 flex items-center gap-1.5">⚡ <b>1% CPU</b> (Direct Copy)</span>
+                        <span class="px-2.5 py-1 rounded-full bg-slate-900/80 border border-slate-800 flex items-center gap-1.5">🔄 <b>Tự động Loop</b> 24/7</span>
+                        <span class="px-2.5 py-1 rounded-full bg-slate-900/80 border border-slate-800 flex items-center gap-1.5">🛡️ <b>0% Gián Đoạn</b></span>
+                    </div>
+                    <div class="pt-2">
+                        <button onclick="openNewStreamModal()" class="px-6 py-3 bg-gradient-to-r from-sky-500 via-sky-600 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-xl shadow-sky-600/30 uppercase tracking-wider transition-all transform hover:-translate-y-0.5 cursor-pointer">
+                            ➕ Khởi Tạo Luồng Live Đầu Tiên
+                        </button>
+                    </div>
+                </div>
             </div>
         `;
         return;
@@ -243,23 +291,23 @@ function renderCloudStreams(streams) {
         const isStarting = s.status === 'starting';
         const isError = s.status === 'error';
 
-        let statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-slate-800 text-slate-400 border border-slate-700">🔴 ĐÃ DỪNG</span>`;
-        let cardBorder = "border-slate-800";
+        let statusBadge = `<span class="px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono bg-slate-900 text-slate-400 border border-slate-800">🔴 ĐÃ DỪNG</span>`;
+        let cardBorder = "border-slate-800/80 hover:border-slate-700";
         if (isRunning) {
-            statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-emerald-950/80 text-emerald-400 border border-emerald-500/50 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>🟢 ĐANG PHÁT LIVE</span>`;
-            cardBorder = "border-emerald-500/50 shadow-emerald-950/20";
+            statusBadge = `<span class="px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono bg-emerald-950/80 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5 shadow-sm shadow-emerald-500/20"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>🟢 ĐANG LIVE 24/7</span>`;
+            cardBorder = "border-emerald-500/40 shadow-lg shadow-emerald-950/20";
         } else if (isStarting) {
-            statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-amber-950/80 text-amber-400 border border-amber-500/50">🟡 ĐANG KẾT NỐI...</span>`;
+            statusBadge = `<span class="px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono bg-amber-950/80 text-amber-300 border border-amber-500/40 flex items-center gap-1.5">🟡 ĐANG KẾT NỐI...</span>`;
             cardBorder = "border-amber-500/40";
         } else if (isError) {
-            statusBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-rose-950/80 text-rose-400 border border-rose-500/50">⚠️ LỖI KẾT NỐI</span>`;
+            statusBadge = `<span class="px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono bg-rose-950/80 text-rose-300 border border-rose-500/40 flex items-center gap-1.5">⚠️ LỖI KẾT NỐI</span>`;
             cardBorder = "border-rose-500/40";
         }
 
         const uptimeStr = s.uptime_sec ? formatUptime(s.uptime_sec) : "--:--:--";
         const modeBadge = s.mode === 'direct' 
-            ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-sky-950/60 text-sky-400 border border-sky-800 font-mono" title="Stream Copy - Tiết kiệm CPU">⚡ 1% CPU (Direct)</span>`
-            : `<span class="text-[10px] px-1.5 py-0.5 rounded bg-purple-950/60 text-purple-400 border border-purple-800 font-mono">⚙️ Transcode x264</span>`;
+            ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-sky-950/60 text-sky-400 border border-sky-800/60 font-mono font-bold" title="Stream Copy - Tiết kiệm CPU">⚡ DIRECT COPY</span>`
+            : `<span class="text-[10px] px-2 py-0.5 rounded-full bg-purple-950/60 text-purple-400 border border-purple-800/60 font-mono font-bold">⚙️ TRANSCODE x264</span>`;
 
         html += `
             <div class="glass p-5 rounded-2xl border ${cardBorder} shadow-xl flex flex-col justify-between space-y-4">
@@ -546,9 +594,23 @@ async function loadCloudMedia() {
             cloudMediaList = data.files || [];
             
             if (quotaBar) quotaBar.style.width = `${Math.min(100, data.percent || 0)}%`;
+            const totalMb = data.quota_mb || (currentUser ? currentUser.disk_quota_mb : 10240);
+            const totalFormatted = totalMb >= 1024 ? (totalMb / 1024).toFixed(0) + ' GB' : totalMb + ' MB';
+            const pct = Math.min(100, data.percent || 0);
+
             if (quotaText) {
-                quotaText.innerText = `${(data.usage_mb || 0).toLocaleString()} MB / ${(data.quota_mb || 10240).toLocaleString()} MB (${data.percent || 0}%)`;
+                quotaText.innerText = `${(data.usage_mb || 0).toLocaleString()} MB / ${(data.quota_mb || 10240).toLocaleString()} MB (${pct}%)`;
             }
+
+            const heroDiskVal = document.getElementById('v4-hero-disk-val');
+            const heroDiskPct = document.getElementById('v4-hero-disk-pct');
+            const heroDiskBar = document.getElementById('v4-hero-disk-bar');
+            if (heroDiskVal) heroDiskVal.innerText = `${(data.usage_mb || 0).toLocaleString()} MB / ${totalFormatted}`;
+            if (heroDiskPct) heroDiskPct.innerText = `${pct}%`;
+            if (heroDiskBar) heroDiskBar.style.width = `${pct}%`;
+
+            const diskEl = document.getElementById('v4-quota-disk');
+            if (diskEl) diskEl.innerText = `${(data.usage_mb || 0).toLocaleString()} MB / ${totalFormatted}`;
 
             renderCloudMedia(cloudMediaList);
         }
