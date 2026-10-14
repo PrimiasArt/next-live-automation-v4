@@ -122,6 +122,15 @@ function updateUserHeaderUI() {
     if (heroDiskVal) heroDiskVal.innerText = `${usedMb.toLocaleString()} MB / ${totalFormatted}`;
     if (heroDiskPct) heroDiskPct.innerText = `${pct}%`;
     if (heroDiskBar) heroDiskBar.style.width = `${pct}%`;
+
+    // Cập nhật số dư AI Credits
+    const credits = (currentUser.quota_remaining !== undefined) ? currentUser.quota_remaining : 0;
+    const quotaCreditsEl = document.getElementById('v4-quota-credits');
+    const csHeroCreditsEl = document.getElementById('cs-hero-credits');
+    const csFormBalanceEl = document.getElementById('cs-form-balance');
+    if (quotaCreditsEl) quotaCreditsEl.innerText = credits.toLocaleString();
+    if (csHeroCreditsEl) csHeroCreditsEl.innerText = credits.toLocaleString();
+    if (csFormBalanceEl) csFormBalanceEl.innerText = credits.toLocaleString();
 }
 
 // Hàm xác thực bằng Cloud API Key (Duy nhất 1 ô nhập)
@@ -188,6 +197,7 @@ function switchV4Tab(tabId) {
 
     const tabBtns = [
         { id: 'v4-tab-btn-streams', tab: 'cloud-streams', activeClass: 'bg-sky-500/15 text-sky-300 border-sky-500/40 shadow-sm shadow-sky-500/20' },
+        { id: 'v4-tab-btn-content-studio', tab: 'content-studio', activeClass: 'bg-purple-500/15 text-purple-300 border-purple-500/40 shadow-sm shadow-purple-500/20' },
         { id: 'v4-tab-btn-media', tab: 'cloud-media', activeClass: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40 shadow-sm shadow-emerald-500/20' },
         { id: 'v4-tab-btn-processor', tab: 'processor-studio', activeClass: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/40 shadow-sm shadow-indigo-500/20' },
         { id: 'v4-tab-btn-admin', tab: 'admin-panel', activeClass: 'bg-purple-500/15 text-purple-300 border-purple-500/40 shadow-sm shadow-purple-500/20' }
@@ -205,6 +215,8 @@ function switchV4Tab(tabId) {
 
     if (tabId === 'cloud-streams') {
         loadCloudStreams(true);
+    } else if (tabId === 'content-studio') {
+        loadContentStudio();
     } else if (tabId === 'cloud-media') {
         loadCloudMedia();
     } else if (tabId === 'admin-panel') {
@@ -777,6 +789,9 @@ async function loadAdminPanel() {
         if (keysData.success && keysData.keys) {
             renderAdminKeysTable(keysData.keys);
         }
+
+        // 3. Cấu hình AI Studio
+        loadAdminAIConfig();
     } catch (e) {
         console.error("Admin load error:", e);
     }
@@ -793,7 +808,7 @@ function renderAdminKeysTable(keys) {
         html += `
             <tr class="border-b border-slate-800/80 hover:bg-slate-900/40 transition-all text-xs">
                 <td class="py-3 px-4 font-mono font-bold text-white flex items-center gap-2">
-                    <span class="truncate max-w-[200px]" title="${k.key}">${k.key}</span>
+                    <span class="truncate max-w-[180px]" title="${k.key}">${k.key}</span>
                     <button onclick="copyToClipboard('${k.key}')" class="p-1 rounded bg-slate-800 hover:text-sky-300 text-slate-400 cursor-pointer" title="Sao chép Mã Khóa">
                         📋
                     </button>
@@ -801,20 +816,26 @@ function renderAdminKeysTable(keys) {
                 <td class="py-3 px-4 text-slate-200 font-semibold">${k.name}</td>
                 <td class="py-3 px-4 font-mono font-bold text-sky-400">${k.active_streams || 0} / ${k.max_streams}</td>
                 <td class="py-3 px-4 font-mono text-slate-300">${(k.disk_usage_mb || 0).toLocaleString()} MB / ${(k.disk_quota_mb || 0).toLocaleString()} MB</td>
+                <td class="py-3 px-4 font-mono font-bold text-purple-300">
+                    <span>${(k.quota_remaining !== undefined ? k.quota_remaining : 0).toLocaleString()} Credits</span>
+                </td>
                 <td class="py-3 px-4">
                     <span class="text-[10px] font-bold ${k.status === 'active' ? 'text-emerald-400' : 'text-rose-400'} uppercase">
                         ${k.status === 'active' ? '● Hoạt động' : '○ Tạm khóa'}
                     </span>
                 </td>
-                <td class="py-3 px-4 text-right space-x-2">
+                <td class="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
                     ${!isMaster ? `
+                        <button onclick="openTopupModal('${k.key}', '${escapeHtml(k.name)}')" class="px-2 py-1 rounded bg-purple-600/20 hover:bg-purple-600 text-purple-300 hover:text-white border border-purple-500/40 text-[11px] font-bold transition-all cursor-pointer" title="Nạp thêm Credits gói AI">
+                            ✨ + Nạp
+                        </button>
                         <button onclick="adminToggleKeyStatus('${k.key}', '${k.status}')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold transition-all cursor-pointer">
                             ${k.status === 'active' ? 'Khóa' : 'Mở'}
                         </button>
                         <button onclick="adminDeleteKey('${k.key}')" class="px-2 py-1 rounded bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 text-[11px] font-bold transition-all cursor-pointer">
                             Xóa
                         </button>
-                    ` : `<span class="text-amber-400 font-semibold text-[11px]">Khóa Gốc (Master)</span>`}
+                    ` : `<span class="text-amber-400 font-semibold text-[11px]">Khóa Gốc (Vô Hạn)</span>`}
                 </td>
             </tr>
         `;
@@ -874,6 +895,7 @@ async function submitCreateApiKey() {
     const customKey = document.getElementById('nk-custom-key').value.trim();
     const maxStreams = parseInt(document.getElementById('nk-streams').value) || 2;
     const diskMb = parseInt(document.getElementById('nk-disk').value) || 10240;
+    const initialCredits = parseInt(document.getElementById('nk-credits') ? document.getElementById('nk-credits').value : 500) || 500;
 
     if (!name) {
         alert("Vui lòng nhập Tên Kênh / Shop!");
@@ -888,7 +910,8 @@ async function submitCreateApiKey() {
                 name,
                 custom_key: customKey,
                 max_streams: maxStreams,
-                disk_quota_mb: diskMb
+                disk_quota_mb: diskMb,
+                quota_remaining: initialCredits
             })
         });
         const data = await res.json();
@@ -896,7 +919,7 @@ async function submitCreateApiKey() {
             closeNewKeyModal();
             loadAdminPanel();
             const createdKey = data.key_data.key;
-            alert(`🎉 CẤP MÃ KHÓA THÀNH CÔNG!\n\nKênh / Shop: ${name}\nMã Khóa: ${createdKey}\n\n👉 Bạn hãy gửi mã này cho người dùng để kích hoạt ứng dụng.`);
+            alert(`🎉 CẤP MÃ KHÓA THÀNH CÔNG!\n\nKênh / Shop: ${name}\nMã Khóa: ${createdKey}\nAI Credits: ${initialCredits}\n\n👉 Bạn hãy gửi mã này cho người dùng để kích hoạt ứng dụng.`);
         } else {
             alert(data.message || "Không thể cấp Mã Khóa");
         }
@@ -971,6 +994,470 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.innerText = text;
     return div.innerHTML;
+}
+
+// =========================================================================
+// TAB: CONTENT STUDIO (AI SCRIPT, VOICE, AVATAR & OBS INJECTION)
+// =========================================================================
+
+let csVoicesList = [];
+let csAvatarsList = [];
+let csSelectedVoiceId = '21m00Tcm4TlvDq8ikWAM';
+let csSelectedAvatarId = 'Daisy-inskirt-20220818';
+let csActivePollInterval = null;
+let csAudioPreviewObj = null;
+let csCurrentGeneratedVideo = null;
+
+async function loadContentStudio() {
+    loadUserCredits();
+    loadVoices();
+    loadAvatars();
+    csLoadRecentTasks();
+}
+
+async function loadUserCredits() {
+    try {
+        const res = await fetch('/api/content-studio/credits', { headers: getAuthHeaders() });
+        const data = await res.json();
+        if (data.success) {
+            const credits = data.credits || 0;
+            const heroCredits = document.getElementById('cs-hero-credits');
+            const formBal = document.getElementById('cs-form-balance');
+            const topCredits = document.getElementById('v4-quota-credits');
+            if (heroCredits) heroCredits.innerText = credits.toLocaleString();
+            if (formBal) formBal.innerText = credits.toLocaleString();
+            if (topCredits) topCredits.innerText = credits.toLocaleString();
+        }
+    } catch (e) {}
+}
+
+async function loadVoices() {
+    const listEl = document.getElementById('cs-voice-list');
+    if (!listEl) return;
+    if (csVoicesList.length === 0) {
+        listEl.innerHTML = `<div class="text-slate-500 text-xs italic py-3 col-span-2 text-center">Đang tải danh sách giọng đọc AI...</div>`;
+    }
+    try {
+        const res = await fetch('/api/content-studio/voices', { headers: getAuthHeaders() });
+        const data = await res.json();
+        if (data.success && data.voices) {
+            csVoicesList = data.voices;
+            renderVoices(csVoicesList);
+        }
+    } catch (e) {
+        console.error("Load voices error:", e);
+    }
+}
+
+function renderVoices(voices) {
+    const listEl = document.getElementById('cs-voice-list');
+    if (!listEl) return;
+    let html = '';
+    voices.forEach(v => {
+        const isSel = (v.id === csSelectedVoiceId);
+        const borderCls = isSel ? 'border-purple-500 bg-purple-950/40 shadow-sm shadow-purple-500/20' : 'border-slate-800 bg-slate-950/80 hover:border-slate-700';
+        html += `
+            <div onclick="csSelectVoice('${v.id}')" class="p-2.5 rounded-xl border ${borderCls} cursor-pointer transition-all flex items-center justify-between gap-2 text-xs group">
+                <div class="space-y-0.5 truncate flex-grow">
+                    <div class="font-bold text-slate-100 flex items-center gap-1.5 truncate">
+                        <span class="w-1.5 h-1.5 rounded-full ${isSel ? 'bg-purple-400' : 'bg-slate-600'}"></span>
+                        <span class="truncate">${escapeHtml(v.name)}</span>
+                    </div>
+                    <p class="text-[10px] text-slate-400 truncate">${escapeHtml(v.style || v.language)}</p>
+                </div>
+                ${v.preview_url ? `
+                    <button type="button" onclick="event.stopPropagation(); csPlayVoiceSample('${v.preview_url}')" class="px-2 py-1 bg-slate-800 hover:bg-purple-600 hover:text-white rounded-lg text-slate-300 text-[10px] font-bold transition-all flex items-center gap-1 shrink-0" title="Nghe thử giọng">
+                        <span>▶️</span>
+                    </button>
+                ` : ''}
+            </div>
+        `;
+    });
+    listEl.innerHTML = html;
+}
+
+function csSelectVoice(voiceId) {
+    csSelectedVoiceId = voiceId;
+    renderVoices(csVoicesList);
+}
+
+function csPlayVoiceSample(url) {
+    if (csAudioPreviewObj) {
+        csAudioPreviewObj.pause();
+        csAudioPreviewObj = null;
+    }
+    if (!url) return;
+    csAudioPreviewObj = new Audio(url);
+    csAudioPreviewObj.play().catch(e => console.log("Audio play blocked:", e));
+}
+
+async function loadAvatars() {
+    const listEl = document.getElementById('cs-avatar-list');
+    if (!listEl) return;
+    if (csAvatarsList.length === 0) {
+        listEl.innerHTML = `<div class="text-slate-500 text-xs italic py-3 col-span-6 text-center">Đang tải danh sách MC ảo...</div>`;
+    }
+    try {
+        const res = await fetch('/api/content-studio/avatars', { headers: getAuthHeaders() });
+        const data = await res.json();
+        if (data.success && data.avatars) {
+            csAvatarsList = data.avatars;
+            renderAvatars(csAvatarsList);
+        }
+    } catch (e) {
+        console.error("Load avatars error:", e);
+    }
+}
+
+function renderAvatars(avatars) {
+    const listEl = document.getElementById('cs-avatar-list');
+    if (!listEl) return;
+    let html = '';
+    avatars.forEach(a => {
+        const isSel = (a.id === csSelectedAvatarId);
+        const borderCls = isSel ? 'border-purple-500 ring-2 ring-purple-500/40' : 'border-slate-800 hover:border-slate-700';
+        html += `
+            <div onclick="csSelectAvatar('${a.id}')" class="rounded-xl border ${borderCls} overflow-hidden cursor-pointer transition-all bg-slate-950 flex flex-col text-center group">
+                <div class="w-full aspect-square bg-slate-900 relative overflow-hidden">
+                    <img src="${a.preview_img || 'https://files2.heygen.ai/avatar/v3/Daisy-inskirt-20220818/preview_target.webp'}" alt="${escapeHtml(a.name)}" class="w-full h-full object-cover group-hover:scale-105 transition-all duration-300" onerror="this.src='https://files2.heygen.ai/avatar/v3/Daisy-inskirt-20220818/preview_target.webp'">
+                    ${isSel ? `<div class="absolute top-1 right-1 w-4 h-4 rounded-full bg-purple-500 text-white flex items-center justify-center text-[10px] font-bold">✓</div>` : ''}
+                </div>
+                <div class="p-1.5">
+                    <div class="text-[10px] font-bold text-slate-200 truncate" title="${escapeHtml(a.name)}">${escapeHtml(a.name.split(' ')[0])}</div>
+                </div>
+            </div>
+        `;
+    });
+    listEl.innerHTML = html;
+}
+
+function csSelectAvatar(avatarId) {
+    csSelectedAvatarId = avatarId;
+    renderAvatars(csAvatarsList);
+}
+
+function csUpdateCharCount() {
+    const input = document.getElementById('cs-script-input');
+    const label = document.getElementById('cs-char-count');
+    if (!input || !label) return;
+    const len = input.value.length;
+    const estSec = Math.max(1, Math.round(len / 15));
+    label.innerText = `${len} ký tự (~${estSec}s)`;
+}
+
+function csApplyTemplate(type) {
+    const titleInput = document.getElementById('cs-title-input');
+    const scriptInput = document.getElementById('cs-script-input');
+    if (!scriptInput) return;
+
+    if (type === 'flashsale') {
+        if (titleInput) titleInput.value = "Flash Sale Giảm Giá 50%";
+        scriptInput.value = "Chào cả nhà! Chỉ duy nhất trong phiên live ngày hôm nay, bên em đang có chương trình Flash Sale giảm sốc lên đến 50%. Số lượng có hạn, các bạn bấm ngay vào giỏ hàng góc trái màn hình để săn deal hời nhé!";
+    } else if (type === 'intro') {
+        if (titleInput) titleInput.value = "Giới Thiệu Sản Phẩm Mới";
+        scriptInput.value = "Hôm nay em xin giới thiệu đến mọi người dòng sản phẩm mới nhất vừa cập bến. Chất liệu cao cấp, bảo hành chính hãng và có rất nhiều voucher độc quyền đang chờ mọi người chốt đơn!";
+    } else if (type === 'welcome') {
+        if (titleInput) titleInput.value = "Lời Chào Livestream & Tặng Quà";
+        scriptInput.value = "Dạ xin chào tất cả các anh chị đang theo dõi buổi phát sóng trực tiếp! Mọi người vào live thả tim và để lại bình luận để nhận ngay voucher giảm 20k cho đơn hàng đầu tiên nha!";
+    } else if (type === 'calltoaction') {
+        if (titleInput) titleInput.value = "Kêu Gọi Chốt Đơn Gấp";
+        scriptInput.value = "Mã giảm giá chỉ còn đúng 5 suất cuối cùng thôi ạ! Bạn nào chưa kịp đặt thì nhanh tay bấm mua ngay bây giờ kẻo hết nhé. Em xin cảm ơn và hẹn gặp lại!";
+    }
+    csUpdateCharCount();
+}
+
+async function submitGenerateAIVideo() {
+    const title = (document.getElementById('cs-title-input') ? document.getElementById('cs-title-input').value.trim() : '') || "Video MC Bán Hàng";
+    const script = document.getElementById('cs-script-input') ? document.getElementById('cs-script-input').value.trim() : '';
+    const aspectRadio = document.querySelector('input[name="cs-aspect"]:checked');
+    const aspect = aspectRadio ? aspectRadio.value : '9:16';
+
+    if (!script) {
+        alert("Vui lòng nhập nội dung kịch bản MC cần nói!");
+        return;
+    }
+
+    const btn = document.getElementById('cs-btn-generate');
+    if (btn) {
+        btn.disabled = true;
+        btn.classList.add('opacity-50', 'cursor-not-allowed');
+    }
+
+    try {
+        const res = await fetch('/api/content-studio/generate', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({
+                title: title,
+                script: script,
+                voice_id: csSelectedVoiceId,
+                avatar_id: csSelectedAvatarId,
+                aspect_ratio: aspect
+            })
+        });
+
+        const data = await res.json();
+        if (data.success && data.task) {
+            loadUserCredits();
+            showTaskProgress(data.task);
+            csStartTaskPolling(data.task.task_id);
+            alert("✨ Tác vụ tạo Video AI đã được kích hoạt! Hệ thống đang xử lý render...");
+        } else {
+            alert(data.message || "Không thể tạo video!");
+        }
+    } catch (e) {
+        alert("Lỗi kết nối máy chủ: " + e.message);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+    }
+}
+
+function showTaskProgress(task) {
+    const card = document.getElementById('cs-task-card');
+    const pct = document.getElementById('cs-task-pct');
+    const bar = document.getElementById('cs-task-bar');
+    const step = document.getElementById('cs-task-step');
+    if (!card) return;
+
+    card.classList.remove('hidden');
+    if (pct) pct.innerText = `${task.progress_pct || 5}%`;
+    if (bar) bar.style.width = `${task.progress_pct || 5}%`;
+    if (step) step.innerText = task.current_step || "Đang xử lý...";
+}
+
+function csStartTaskPolling(taskId) {
+    if (csActivePollInterval) clearInterval(csActivePollInterval);
+    csActivePollInterval = setInterval(async () => {
+        try {
+            const res = await fetch(`/api/content-studio/task/${taskId}`, { headers: getAuthHeaders() });
+            const data = await res.json();
+            if (data.success && data.task) {
+                const t = data.task;
+                showTaskProgress(t);
+                if (t.status === 'completed') {
+                    clearInterval(csActivePollInterval);
+                    csActivePollInterval = null;
+                    onAIVideoCompleted(t);
+                } else if (t.status === 'failed') {
+                    clearInterval(csActivePollInterval);
+                    csActivePollInterval = null;
+                    alert("❌ Render video thất bại: " + (t.error || "Lỗi không xác định"));
+                }
+            }
+        } catch (e) {}
+    }, 2000);
+}
+
+function onAIVideoCompleted(task) {
+    csCurrentGeneratedVideo = task.video_filename;
+    loadUserCredits();
+    csLoadRecentTasks();
+
+    const player = document.getElementById('cs-video-player');
+    const placeholder = document.getElementById('cs-video-placeholder');
+    const badge = document.getElementById('cs-preview-badge');
+    const actions = document.getElementById('cs-video-actions');
+    const dlLink = document.getElementById('cs-download-link');
+
+    if (player && task.video_filename) {
+        player.src = `/api/media/file/${encodeURIComponent(task.video_filename)}`;
+        player.classList.remove('hidden');
+        if (placeholder) placeholder.classList.add('hidden');
+        player.load();
+        player.play().catch(e => {});
+    }
+
+    if (badge) {
+        badge.className = "text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-500/40";
+        badge.innerText = "HOÀN TẤT";
+    }
+
+    if (actions) actions.classList.remove('hidden');
+    if (dlLink && task.video_filename) {
+        dlLink.href = `/api/media/file/${encodeURIComponent(task.video_filename)}`;
+    }
+}
+
+async function csLoadRecentTasks() {
+    const listEl = document.getElementById('cs-recent-tasks-list');
+    if (!listEl) return;
+    try {
+        const res = await fetch('/api/content-studio/tasks', { headers: getAuthHeaders() });
+        const data = await res.json();
+        if (data.success && data.tasks) {
+            if (data.tasks.length === 0) {
+                listEl.innerHTML = `<div class="text-slate-500 text-center py-4 italic">Chưa có video nào trong phiên làm việc.</div>`;
+                return;
+            }
+            let html = '';
+            data.tasks.slice(0, 5).forEach(t => {
+                const isDone = (t.status === 'completed');
+                html += `
+                    <div class="p-2.5 rounded-xl border border-slate-800 bg-slate-950/70 hover:border-slate-700 transition-all flex items-center justify-between gap-2">
+                        <div class="truncate space-y-0.5">
+                            <div class="font-bold text-slate-200 truncate flex items-center gap-1.5">
+                                <span>${isDone ? '🎬' : '⏳'}</span>
+                                <span class="truncate">${escapeHtml(t.title)}</span>
+                            </div>
+                            <div class="text-[10px] text-slate-500 font-mono">${t.created_at}</div>
+                        </div>
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            ${isDone && t.video_filename ? `
+                                <button onclick="csPreviewVideo('${t.video_filename}')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-[10px] cursor-pointer">
+                                    ▶️ Xem
+                                </button>
+                                <button onclick="pushVideoToOBSDirect('${t.video_filename}')" class="px-2 py-1 rounded bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white border border-sky-500/40 font-bold text-[10px] cursor-pointer" title="Nạp vào OBS">
+                                    🎛️ OBS
+                                </button>
+                            ` : `<span class="text-[10px] text-amber-400 font-mono">Đang render</span>`}
+                        </div>
+                    </div>
+                `;
+            });
+            listEl.innerHTML = html;
+        }
+    } catch (e) {}
+}
+
+function csPreviewVideo(filename) {
+    onAIVideoCompleted({ video_filename: filename });
+}
+
+async function pushCurrentAIVideoToOBS() {
+    if (!csCurrentGeneratedVideo) {
+        alert("Chưa có video AI nào được chọn để nạp vào OBS!");
+        return;
+    }
+    await pushVideoToOBSDirect(csCurrentGeneratedVideo);
+}
+
+async function pushVideoToOBSDirect(filename) {
+    try {
+        const res = await fetch('/api/content-studio/push-obs', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({
+                video_filename: filename,
+                source_name: "MC_AI_Live"
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert(`🎉 NẠP OBS THÀNH CÔNG!\n\n${data.message}`);
+        } else {
+            alert(`⚠️ Không thể nạp vào OBS:\n\n${data.message}`);
+        }
+    } catch (e) {
+        alert("Lỗi kết nối: " + e.message);
+    }
+}
+
+function streamCurrentAIVideoCloud() {
+    if (!csCurrentGeneratedVideo) {
+        alert("Chưa có video AI nào được chọn!");
+        return;
+    }
+    switchV4Tab('cloud-streams');
+    openNewStreamModal(csCurrentGeneratedVideo);
+}
+
+
+// --- ADMIN AI CONFIG & TOP-UP CREDITS ---
+
+async function loadAdminAIConfig() {
+    try {
+        const res = await fetch('/api/content-studio/admin/config', { headers: getAuthHeaders() });
+        const data = await res.json();
+        if (data.success) {
+            const elStatus = document.getElementById('admin-ai-el-status');
+            const hgStatus = document.getElementById('admin-ai-hg-status');
+            const costVoice = document.getElementById('admin-ai-cost-voice');
+            const costVideo = document.getElementById('admin-ai-cost-video');
+
+            if (elStatus) elStatus.innerText = data.has_elevenlabs ? `Đã cấu hình (${data.elevenlabs_masked})` : "Chưa có key";
+            if (hgStatus) hgStatus.innerText = data.has_heygen ? `Đã cấu hình (${data.heygen_masked})` : "Chưa có key";
+            if (costVoice && data.cost_per_voice) costVoice.value = data.cost_per_voice;
+            if (costVideo && data.cost_per_video) costVideo.value = data.cost_per_video;
+        }
+    } catch (e) {}
+}
+
+async function saveAdminAIConfig() {
+    const elInput = document.getElementById('admin-ai-el-key');
+    const hgInput = document.getElementById('admin-ai-hg-key');
+    const costVoice = document.getElementById('admin-ai-cost-voice');
+    const costVideo = document.getElementById('admin-ai-cost-video');
+
+    const payload = {};
+    if (elInput && elInput.value.trim()) payload.elevenlabs_api_key = elInput.value.trim();
+    if (hgInput && hgInput.value.trim()) payload.heygen_api_key = hgInput.value.trim();
+    if (costVoice) payload.cost_per_voice = parseInt(costVoice.value) || 2;
+    if (costVideo) payload.cost_per_video = parseInt(costVideo.value) || 10;
+
+    try {
+        const res = await fetch('/api/content-studio/admin/config', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert("🎉 Đã lưu cấu hình Master AI thành công!");
+            if (elInput) elInput.value = '';
+            if (hgInput) hgInput.value = '';
+            loadAdminAIConfig();
+        } else {
+            alert(data.message || "Lỗi lưu cấu hình");
+        }
+    } catch (e) {
+        alert("Lỗi kết nối: " + e.message);
+    }
+}
+
+function openTopupModal(apiKey, clientName) {
+    const modal = document.getElementById('modal-topup-credits');
+    const label = document.getElementById('topup-client-label');
+    const keyInput = document.getElementById('topup-api-key');
+    if (!modal) return;
+    if (label) label.innerText = `${clientName} (${apiKey})`;
+    if (keyInput) keyInput.value = apiKey;
+    modal.classList.remove('hidden');
+}
+
+function closeTopupModal() {
+    const modal = document.getElementById('modal-topup-credits');
+    if (modal) modal.classList.add('hidden');
+}
+
+async function submitTopupCredits() {
+    const key = document.getElementById('topup-api-key').value;
+    const amount = parseInt(document.getElementById('topup-amount').value) || 0;
+
+    if (!key || amount <= 0) {
+        alert("Vui lòng nhập số lượng Credits hợp lệ (> 0)!");
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/content-studio/admin/topup', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ api_key: key, amount: amount })
+        });
+        const data = await res.json();
+        if (data.success) {
+            closeTopupModal();
+            loadAdminPanel();
+            alert(`🎉 NẠP CREDITS THÀNH CÔNG!\n\nĐã cộng +${amount} Credits vào tài khoản khách hàng.`);
+        } else {
+            alert(data.message || "Lỗi nạp Credits");
+        }
+    } catch (e) {
+        alert("Lỗi kết nối: " + e.message);
+    }
 }
 
 // Bắt đầu khởi tạo khi DOM sẵn sàng

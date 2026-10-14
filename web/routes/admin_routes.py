@@ -45,7 +45,8 @@ def create_api_key(admin_user):
         name=data.get('name', ''),
         custom_key=data.get('custom_key', None),
         max_streams=int(data.get('max_streams', 2)),
-        disk_quota_mb=int(data.get('disk_quota_mb', 10240))
+        disk_quota_mb=int(data.get('disk_quota_mb', 10240)),
+        quota_remaining=int(data.get('quota_remaining', 500))
     )
     return jsonify(res)
 

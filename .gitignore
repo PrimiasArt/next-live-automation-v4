@@ -25,6 +25,8 @@ bin/*.zip
 storage/users/
 data/tokens.json
 data/users.json
+data/content_studio_tasks.json
+data/ai_settings.json
 
 # Scratch and test logs
 scratch/

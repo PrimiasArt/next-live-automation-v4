@@ -127,7 +127,7 @@ class ApiKeyManager:
 
         return {"success": False, "message": "API Key không chính xác. Vui lòng kiểm tra lại!"}
 
-    def create_client_key(self, name: str, custom_key: Optional[str] = None, max_streams: int = 2, disk_quota_mb: int = 10240) -> Dict[str, Any]:
+    def create_client_key(self, name: str, custom_key: Optional[str] = None, max_streams: int = 2, disk_quota_mb: int = 10240, quota_remaining: int = 500) -> Dict[str, Any]:
         name = (name or "").strip()
         if not name:
             return {"success": False, "message": "Vui lòng nhập tên khách hàng / tên shop"}
@@ -157,7 +157,7 @@ class ApiKeyManager:
             "role": "client",
             "max_streams": max(1, int(max_streams)),
             "disk_quota_mb": max(512, int(disk_quota_mb)),
-            "quota_remaining": 1000,
+            "quota_remaining": max(0, int(quota_remaining)),
             "status": "active",
             "created_at": time.strftime("%Y-%m-%d %H:%M:%S")
         }
@@ -179,12 +179,65 @@ class ApiKeyManager:
             item["max_streams"] = max(1, int(updates["max_streams"]))
         if "disk_quota_mb" in updates:
             item["disk_quota_mb"] = max(512, int(updates["disk_quota_mb"]))
+        if "quota_remaining" in updates:
+            item["quota_remaining"] = max(0, int(updates["quota_remaining"]))
         if "status" in updates and updates["status"] in ["active", "disabled"]:
             item["status"] = updates["status"]
 
         self.keys[key] = item
         self.save_keys()
         return {"success": True, "key_data": item}
+
+    def get_credits(self, api_key: str) -> int:
+        if api_key == MASTER_ADMIN_KEY:
+            return 999999
+        item = self.keys.get(api_key)
+        if not item:
+            return 0
+        return int(item.get("quota_remaining", 0))
+
+    def deduct_credits(self, api_key: str, amount: int, reason: str = "") -> Dict[str, Any]:
+        if api_key == MASTER_ADMIN_KEY:
+            return {"success": True, "remaining": 999999, "deducted": 0, "is_admin": True}
+
+        if api_key not in self.keys:
+            return {"success": False, "message": "API Key không hợp lệ"}
+
+        item = self.keys[api_key]
+        current_credits = int(item.get("quota_remaining", 0))
+        if current_credits < amount:
+            return {
+                "success": False, 
+                "message": f"Số dư không đủ! Cần {amount} Credits nhưng chỉ còn {current_credits} Credits. Vui lòng liên hệ Admin để nạp thêm gói dịch vụ.",
+                "current_credits": current_credits,
+                "required_credits": amount
+            }
+
+        item["quota_remaining"] = current_credits - amount
+        self.keys[api_key] = item
+        self.save_keys()
+
+        return {
+            "success": True,
+            "deducted": amount,
+            "remaining": item["quota_remaining"],
+            "reason": reason
+        }
+
+    def add_credits(self, api_key: str, amount: int) -> Dict[str, Any]:
+        if api_key not in self.keys:
+            return {"success": False, "message": "API Key không tồn tại"}
+
+        item = self.keys[api_key]
+        item["quota_remaining"] = int(item.get("quota_remaining", 0)) + int(amount)
+        self.keys[api_key] = item
+        self.save_keys()
+
+        return {
+            "success": True,
+            "added": amount,
+            "new_balance": item["quota_remaining"]
+        }
 
     def delete_key(self, key: str) -> Dict[str, Any]:
         if key == MASTER_ADMIN_KEY:
@@ -197,3 +250,4 @@ class ApiKeyManager:
         return {"success": True, "message": "Đã xóa API Key thành công"}
 
 api_key_manager = ApiKeyManager()
+

@@ -134,6 +134,11 @@
                     <span>Luồng Live Cloud</span>
                     <span id="v4-active-streams-badge" class="px-1.5 py-0.2 rounded-full text-[10px] bg-sky-500/30 text-sky-200 font-mono font-bold">0</span>
                 </button>
+                <button onclick="switchV4Tab('content-studio')" id="v4-tab-btn-content-studio" class="px-3.5 py-1.5 rounded-xl font-medium text-xs flex items-center gap-2 border border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all cursor-pointer whitespace-nowrap">
+                    <span class="text-sm">🎬</span>
+                    <span>Content Studio</span>
+                    <span class="px-1.5 py-0.2 rounded-full text-[9px] bg-purple-500/30 text-purple-200 font-mono font-bold">AI</span>
+                </button>
                 <button onclick="switchV4Tab('cloud-media')" id="v4-tab-btn-media" class="px-3.5 py-1.5 rounded-xl font-medium text-xs flex items-center gap-2 border border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition-all cursor-pointer whitespace-nowrap">
                     <span class="text-sm">📁</span>
                     <span>Kho Video Media</span>
@@ -157,6 +162,7 @@
                         <span id="v4-user-name" class="font-bold text-slate-100 max-w-[140px] truncate">Trạm Phát Sóng</span>
                     </div>
                     <div class="hidden lg:flex items-center gap-2.5 text-[11px] text-slate-400 border-l border-slate-800 pl-2.5 font-mono">
+                        <span>✨ <b id="v4-quota-credits" class="text-purple-300 font-bold">0</b> Credits</span>
                         <span>📡 <b id="v4-quota-streams" class="text-sky-300 font-bold">0/20</b></span>
                         <span>💾 <b id="v4-quota-disk" class="text-amber-300 font-bold">0 MB</b></span>
                     </div>
@@ -176,6 +182,7 @@
         <!-- Mobile Navigation Bar -->
         <div class="md:hidden mt-3 flex items-center gap-1.5 overflow-x-auto pb-1 max-w-7xl mx-auto">
             <button onclick="switchV4Tab('cloud-streams')" class="px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap bg-sky-600/20 text-sky-300 border border-sky-500/40">📡 Luồng Live</button>
+            <button onclick="switchV4Tab('content-studio')" class="px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap bg-slate-900 text-purple-300 border border-purple-800/40">🎬 Studio AI</button>
             <button onclick="switchV4Tab('cloud-media')" class="px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap bg-slate-900 text-slate-400 border border-slate-800">📁 Kho Video</button>
             <button onclick="switchV4Tab('processor-studio')" class="px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap bg-slate-900 text-slate-400 border border-slate-800">🎛️ Studio</button>
             <button onclick="switchV4Tab('admin-panel')" id="v4-tab-btn-admin-mobile" class="hidden px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap bg-purple-900/20 text-purple-300 border border-purple-800/40">🔑 Quản Lý Khóa</button>
@@ -322,6 +329,221 @@
             </div>
         </div>
 
+        <!-- TAB: CONTENT STUDIO (AI VIDEO GENERATOR & OBS INJECTION) -->
+        <div id="panel-content-studio" class="v4-panel hidden space-y-6">
+            <!-- 4 Thẻ Chỉ Số AI Studio -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Thẻ 1: Hạn Mức Credits -->
+                <div class="glass p-4 rounded-2xl border border-purple-500/30 hover:border-purple-500/50 transition-all space-y-1.5 bg-gradient-to-br from-purple-950/20 to-slate-900/40">
+                    <div class="flex items-center justify-between text-slate-400 text-xs font-bold uppercase tracking-wider">
+                        <span>✨ Số Dư AI Credits</span>
+                        <span class="text-[10px] font-mono font-bold text-purple-300 bg-purple-950/80 px-2 py-0.5 rounded-full border border-purple-700/60">GÓI DỊCH VỤ</span>
+                    </div>
+                    <div class="text-2xl font-black font-mono text-purple-300 flex items-baseline gap-1.5">
+                        <span id="cs-hero-credits">0</span>
+                        <span class="text-xs text-slate-400 font-normal">Credits</span>
+                    </div>
+                    <p class="text-[11px] text-slate-400">10 Credits / Video MC • 2 Credits / Voice</p>
+                </div>
+
+                <!-- Thẻ 2: ElevenLabs Voice AI -->
+                <div class="glass p-4 rounded-2xl border border-slate-800/80 hover:border-slate-700 transition-all space-y-1.5">
+                    <div class="flex items-center justify-between text-slate-400 text-xs font-bold uppercase tracking-wider">
+                        <span>🎙️ ElevenLabs Voice</span>
+                        <span class="text-[10px] font-mono font-bold text-sky-400 bg-sky-950/60 px-2 py-0.5 rounded-full border border-sky-800/60">NEURAL V2</span>
+                    </div>
+                    <div class="text-xl font-black text-slate-100 truncate">Tiếng Việt & Đa Ngữ</div>
+                    <p class="text-[11px] text-slate-400">Ngữ điệu tự nhiên, chốt sale chân thực</p>
+                </div>
+
+                <!-- Thẻ 3: HeyGen Avatar AI -->
+                <div class="glass p-4 rounded-2xl border border-slate-800/80 hover:border-slate-700 transition-all space-y-1.5">
+                    <div class="flex items-center justify-between text-slate-400 text-xs font-bold uppercase tracking-wider">
+                        <span>🎬 HeyGen Avatar</span>
+                        <span class="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-800/60">LIP-SYNC 60FPS</span>
+                    </div>
+                    <div class="text-xl font-black text-slate-100 truncate">MC Ảo Bán Hàng</div>
+                    <p class="text-[11px] text-slate-400">Khớp khẩu hình 100%, chất lượng 1080p</p>
+                </div>
+
+                <!-- Thẻ 4: Tự Động Hóa OBS & Live -->
+                <div class="glass p-4 rounded-2xl border border-slate-800/80 hover:border-slate-700 transition-all space-y-1.5">
+                    <div class="flex items-center justify-between text-slate-400 text-xs font-bold uppercase tracking-wider">
+                        <span>🚀 Xuất Bản Tự Động</span>
+                        <span class="text-[10px] font-mono font-bold text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded-full border border-amber-800/60">1-CLICK PIPELINE</span>
+                    </div>
+                    <div class="text-xl font-black text-slate-100 truncate">OBS & Cloud Live</div>
+                    <p class="text-[11px] text-slate-400">Nạp thẳng vào Scene hoặc Live 24/7</p>
+                </div>
+            </div>
+
+            <!-- Bố cục 2 Cột Studio -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <!-- CỘT TRÁI (7 Cols): Bộ Thiết Kế Kịch Bản & Chọn Diễn Viên -->
+                <div class="lg:col-span-7 space-y-5">
+                    <div class="glass p-6 rounded-2xl border border-slate-800 space-y-4 shadow-xl">
+                        <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+                            <div>
+                                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                                    <span>✍️ Kịch Bản & Tạo Video MC Ảo</span>
+                                    <span class="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 font-mono font-bold">AI STUDIO</span>
+                                </h3>
+                                <p class="text-slate-400 text-xs mt-0.5">Soạn kịch bản bán hàng, chọn giọng đọc và MC ảo để tự động sản xuất video live.</p>
+                            </div>
+                        </div>
+
+                        <!-- 1. Tiêu đề video -->
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-semibold text-slate-300 flex justify-between">
+                                <span>Tiêu đề video:</span>
+                                <span class="text-[10px] text-slate-500">Giúp phân loại trong kho Media</span>
+                            </label>
+                            <input type="text" id="cs-title-input" placeholder="VD: Flash Sale Áo Thun Cotton Giảm 50%..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-purple-500 transition-all font-sans">
+                        </div>
+
+                        <!-- 2. Mẫu kịch bản nhanh (Quick Templates) -->
+                        <div class="space-y-1.5">
+                            <label class="text-xs font-semibold text-slate-300">Gợi ý kịch bản mẫu nhanh:</label>
+                            <div class="flex flex-wrap gap-2">
+                                <button type="button" onclick="csApplyTemplate('flashsale')" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[11px] text-amber-300 transition-all cursor-pointer">⚡ Flash Sale Giảm 50%</button>
+                                <button type="button" onclick="csApplyTemplate('intro')" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[11px] text-sky-300 transition-all cursor-pointer">⭐ Giới Thiệu Sản Phẩm</button>
+                                <button type="button" onclick="csApplyTemplate('welcome')" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[11px] text-emerald-300 transition-all cursor-pointer">🎁 Mở Màn Tặng Quà</button>
+                                <button type="button" onclick="csApplyTemplate('calltoaction')" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[11px] text-rose-300 transition-all cursor-pointer">🔥 Kêu Gọi Chốt Đơn</button>
+                            </div>
+                        </div>
+
+                        <!-- 3. Nội dung kịch bản -->
+                        <div class="space-y-1.5">
+                            <div class="flex justify-between items-center text-xs font-semibold text-slate-300">
+                                <span>Nội dung MC đọc:</span>
+                                <span id="cs-char-count" class="text-[11px] font-mono text-slate-500">0 ký tự (~0s)</span>
+                            </div>
+                            <textarea id="cs-script-input" rows="4" oninput="csUpdateCharCount()" placeholder="Nhập lời chào hàng, mô tả quà tặng, hướng dẫn bấm vào giỏ hàng..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-purple-500 transition-all resize-none leading-relaxed font-sans"></textarea>
+                        </div>
+
+                        <!-- 4. Chọn Giọng Đọc ElevenLabs -->
+                        <div class="space-y-2">
+                            <label class="text-xs font-semibold text-slate-300 flex items-center justify-between">
+                                <span class="flex items-center gap-1.5">
+                                    <span>🎙️ Chọn Giọng Đọc AI (ElevenLabs)</span>
+                                </span>
+                                <span class="text-[11px] text-purple-400 font-mono">2 Credits / Lần</span>
+                            </label>
+                            <div id="cs-voice-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+                                <!-- Populated dynamically by v4_app.js -->
+                            </div>
+                        </div>
+
+                        <!-- 5. Chọn MC Ảo HeyGen -->
+                        <div class="space-y-2">
+                            <label class="text-xs font-semibold text-slate-300 flex items-center justify-between">
+                                <span class="flex items-center gap-1.5">
+                                    <span>👤 Chọn MC Ảo Livestream (HeyGen)</span>
+                                </span>
+                                <span class="text-[11px] text-emerald-400 font-mono">10 Credits / Video</span>
+                            </label>
+                            <div id="cs-avatar-list" class="grid grid-cols-3 sm:grid-cols-6 gap-2 max-h-44 overflow-y-auto pr-1 custom-scrollbar">
+                                <!-- Populated dynamically by v4_app.js -->
+                            </div>
+                        </div>
+
+                        <!-- 6. Chọn Tỷ lệ khung hình (Aspect Ratio) -->
+                        <div class="space-y-1.5 pt-1">
+                            <label class="text-xs font-semibold text-slate-300">Tỷ lệ khung hình video:</label>
+                            <div class="grid grid-cols-2 gap-3">
+                                <label class="flex items-center gap-2.5 p-2.5 rounded-xl border border-purple-500/50 bg-purple-950/20 cursor-pointer text-xs font-semibold text-purple-200">
+                                    <input type="radio" name="cs-aspect" value="9:16" checked class="accent-purple-500">
+                                    <span>📱 9:16 Dọc (TikTok, Shopee Live)</span>
+                                </label>
+                                <label class="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-800 bg-slate-900/50 cursor-pointer text-xs font-semibold text-slate-400 hover:text-slate-200">
+                                    <input type="radio" name="cs-aspect" value="16:9" class="accent-purple-500">
+                                    <span>🖥️ 16:9 Ngang (YouTube, Facebook)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Thanh Tổng Kết & Nút Bấm Khởi Tạo -->
+                        <div class="pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-4">
+                            <div class="text-xs font-mono">
+                                <span class="text-slate-400">Chi phí dự kiến:</span>
+                                <span class="text-amber-400 font-bold text-sm ml-1">10 Credits</span>
+                                <span class="text-slate-500 text-[11px] ml-1">(Còn: <b id="cs-form-balance" class="text-purple-300">0</b> Credits)</span>
+                            </div>
+
+                            <button id="cs-btn-generate" onclick="submitGenerateAIVideo()" class="px-6 py-3 bg-gradient-to-r from-purple-600 via-indigo-600 to-sky-600 hover:from-purple-500 hover:to-sky-500 text-white font-bold text-xs rounded-xl shadow-xl shadow-purple-600/30 uppercase tracking-wider transition-all transform hover:-translate-y-0.5 cursor-pointer flex items-center gap-2">
+                                <span>✨ Bắt Đầu Tạo Video AI</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CỘT PHẢI (5 Cols): Hàng Đợi & Xem Trước Video -->
+                <div class="lg:col-span-5 space-y-5">
+                    <!-- Khung Tác Vụ Đang Render -->
+                    <div id="cs-task-card" class="glass p-5 rounded-2xl border border-purple-500/40 space-y-3.5 shadow-xl hidden">
+                        <div class="flex justify-between items-center">
+                            <h4 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-purple-400 animate-ping"></span>
+                                <span>Tiến Trình Render AI</span>
+                            </h4>
+                            <span id="cs-task-pct" class="text-xs font-mono font-bold text-purple-300">0%</span>
+                        </div>
+
+                        <div class="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800">
+                            <div id="cs-task-bar" class="bg-gradient-to-r from-purple-500 via-sky-500 to-emerald-400 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+
+                        <p id="cs-task-step" class="text-xs text-slate-300 font-mono italic">Đang khởi tạo...</p>
+                    </div>
+
+                    <!-- Khung Video Thành Phẩm (Preview Player) -->
+                    <div class="glass p-5 rounded-2xl border border-slate-800 space-y-4 shadow-xl">
+                        <div class="flex justify-between items-center pb-2 border-b border-slate-800">
+                            <h4 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                                <span>📺 Xem Trước Video Thành Phẩm</span>
+                            </h4>
+                            <span id="cs-preview-badge" class="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-slate-800 text-slate-400">CHƯA CÓ VIDEO</span>
+                        </div>
+
+                        <div class="relative bg-black rounded-xl overflow-hidden aspect-[9/16] max-h-[360px] flex items-center justify-center border border-slate-800/80 mx-auto w-full">
+                            <video id="cs-video-player" controls class="w-full h-full object-contain hidden"></video>
+                            <div id="cs-video-placeholder" class="text-center p-6 space-y-2 text-slate-500">
+                                <div class="text-4xl">🎬</div>
+                                <p class="text-xs">Chưa có video được chọn.</p>
+                                <p class="text-[11px] text-slate-600">Video render xong sẽ hiển thị tại đây.</p>
+                            </div>
+                        </div>
+
+                        <!-- 3 Nút Hành Động Nhanh -->
+                        <div id="cs-video-actions" class="space-y-2 pt-2 hidden">
+                            <button onclick="pushCurrentAIVideoToOBS()" class="w-full py-2.5 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-sky-500/25 uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer">
+                                <span>🎛️ Nạp Ngay Vào Nguồn OBS Studio</span>
+                            </button>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button onclick="streamCurrentAIVideoCloud()" class="py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-600/25 uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                                    <span>📡 Live 24/7 Cloud</span>
+                                </button>
+                                <a id="cs-download-link" href="#" download class="py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 cursor-pointer text-center">
+                                    <span>⬇️ Tải Về</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Danh Sách Video AI Gần Đây -->
+                    <div class="glass p-5 rounded-2xl border border-slate-800 space-y-3 shadow-xl">
+                        <div class="flex justify-between items-center">
+                            <h4 class="text-xs font-bold text-white uppercase tracking-wider">📁 Video AI Vừa Tạo</h4>
+                            <button onclick="csLoadRecentTasks()" class="text-[11px] text-slate-400 hover:text-white cursor-pointer">🔄 Làm mới</button>
+                        </div>
+                        <div id="cs-recent-tasks-list" class="space-y-2 max-h-52 overflow-y-auto pr-1 custom-scrollbar text-xs">
+                            <div class="text-slate-500 text-center py-4 italic">Chưa có video nào trong phiên làm việc.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- TAB 4: QUẢN TRỊ HỆ THỐNG (ADMIN PORTAL) -->
         <div id="panel-admin-panel" class="v4-panel hidden space-y-6">
             <!-- 4 Thẻ Giám Sát Tài Nguyên Server -->
@@ -348,14 +570,60 @@
                 </div>
             </div>
 
+            <!-- Cấu Hình Master AI API Key (ElevenLabs & HeyGen) -->
+            <div class="glass p-5 rounded-2xl border border-purple-500/30 space-y-4 shadow-xl">
+                <div class="flex justify-between items-center pb-2 border-b border-slate-800">
+                    <div>
+                        <h4 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                            <span>🤖 Cấu Hình Master AI API Key (Content Studio)</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-mono font-bold">ADMIN ONLY</span>
+                        </h4>
+                        <p class="text-[11px] text-slate-400">Thiết lập 1 lần duy nhất cho toàn hệ thống. Khách hàng sử dụng chung Master Key và bị trừ theo hạn mức Credits đã mua.</p>
+                    </div>
+                    <button onclick="saveAdminAIConfig()" class="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-600/25 transition-all cursor-pointer">
+                        💾 Lưu Cấu Hình AI
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                        <label class="text-xs font-semibold text-slate-300 flex justify-between">
+                            <span>ElevenLabs API Key:</span>
+                            <span id="admin-ai-el-status" class="text-[10px] text-slate-400 font-mono">Đang kiểm tra...</span>
+                        </label>
+                        <input type="password" id="admin-ai-el-key" placeholder="Nhập ElevenLabs API Key (bắt đầu bằng xi-...)" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-purple-500 font-mono transition-all">
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-xs font-semibold text-slate-300 flex justify-between">
+                            <span>HeyGen API Key:</span>
+                            <span id="admin-ai-hg-status" class="text-[10px] text-slate-400 font-mono">Đang kiểm tra...</span>
+                        </label>
+                        <input type="password" id="admin-ai-hg-key" placeholder="Nhập HeyGen API Key..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-purple-500 font-mono transition-all">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 pt-1 text-xs">
+                    <div class="flex items-center gap-2">
+                        <span class="text-slate-400">Phí trừ Voice:</span>
+                        <input type="number" id="admin-ai-cost-voice" value="2" min="1" class="w-16 bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-center text-white font-mono outline-none focus:border-purple-500">
+                        <span class="text-slate-500">Credits / Lần</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-slate-400">Phí trừ Video MC:</span>
+                        <input type="number" id="admin-ai-cost-video" value="10" min="1" class="w-16 bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-center text-white font-mono outline-none focus:border-purple-500">
+                        <span class="text-slate-500">Credits / Video</span>
+                    </div>
+                </div>
+            </div>
+
             <!-- Bảng Quản Lý Khóa Phát Sóng (License Keys) -->
             <div class="glass rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
                 <div class="p-4 border-b border-slate-800 flex justify-between items-center">
                     <div>
                         <h4 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                            <span>🔑 Quản Lý Khóa Phát Sóng (License Keys)</span>
+                            <span>🔑 Quản Lý Khóa Phát Sóng & Gói Dịch Vụ AI</span>
                         </h4>
-                        <p class="text-[11px] text-slate-400">Cấp mã khóa phát sóng cho từng kênh/shop, phân bổ số luồng live và dung lượng lưu trữ.</p>
+                        <p class="text-[11px] text-slate-400">Cấp mã khóa cho từng kênh/shop, phân bổ luồng live, dung lượng ổ đĩa và nạp Credits làm video AI.</p>
                     </div>
                     <button onclick="openNewKeyModal()" class="px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-600/30 transition-all flex items-center gap-1.5 cursor-pointer">
                         <span>➕ Cấp Mã Khóa Mới</span>
@@ -369,6 +637,7 @@
                                 <th class="py-3 px-4">Tên Kênh / Shop</th>
                                 <th class="py-3 px-4">Số Luồng (Đang Live / Max)</th>
                                 <th class="py-3 px-4">Dung Lượng Lưu Trữ</th>
+                                <th class="py-3 px-4">AI Credits</th>
                                 <th class="py-3 px-4">Trạng Thái</th>
                                 <th class="py-3 px-4 text-right">Thao Tác</th>
                             </tr>
@@ -2560,11 +2829,52 @@
                         <span class="text-[10px] text-slate-500">10,240 MB = 10 GB</span>
                     </div>
                 </div>
+                <div>
+                    <label class="block font-semibold text-slate-300 mb-1">Số dư AI Credits ban đầu:</label>
+                    <input type="number" id="nk-credits" value="500" min="0" step="50" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500 font-mono">
+                    <span class="text-[10px] text-slate-500">500 Credits ~ 50 Video MC AI</span>
+                </div>
             </div>
 
             <div class="pt-3 border-t border-slate-800 flex justify-end gap-2">
                 <button onclick="closeNewKeyModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-all cursor-pointer">Hủy</button>
                 <button onclick="submitCreateApiKey()" class="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-purple-600/30 uppercase tracking-wider transition-all cursor-pointer">Cấp Mã Khóa</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: NẠP CREDITS GÓI DỊCH VỤ AI (TOPUP CREDITS) -->
+    <div id="modal-topup-credits" class="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-50 hidden p-4">
+        <div class="glass w-full max-w-sm rounded-2xl p-6 border border-purple-500/40 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+                <h3 class="text-sm font-black uppercase text-purple-400 flex items-center gap-2">
+                    <span>✨ Nạp AI Credits Cho Khách Hàng</span>
+                </h3>
+                <button onclick="closeTopupModal()" class="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer">✕</button>
+            </div>
+
+            <div class="space-y-3 text-xs">
+                <div>
+                    <label class="block font-semibold text-slate-400 mb-1">Khách hàng / Mã Khóa:</label>
+                    <div id="topup-client-label" class="p-2.5 bg-slate-950 rounded-xl font-mono text-purple-300 font-bold border border-slate-800 truncate">--</div>
+                    <input type="hidden" id="topup-api-key">
+                </div>
+
+                <div>
+                    <label class="block font-semibold text-slate-300 mb-1">Số lượng Credits nạp thêm: *</label>
+                    <input type="number" id="topup-amount" value="500" min="10" step="50" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500 font-mono text-sm">
+                </div>
+
+                <div class="flex gap-2 pt-1">
+                    <button type="button" onclick="document.getElementById('topup-amount').value=100" class="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 rounded-lg text-slate-300 border border-slate-800 font-mono text-[11px] cursor-pointer">+100</button>
+                    <button type="button" onclick="document.getElementById('topup-amount').value=500" class="flex-1 py-1.5 bg-purple-950/60 hover:bg-purple-900/60 rounded-lg text-purple-300 border border-purple-700/60 font-mono text-[11px] cursor-pointer">+500</button>
+                    <button type="button" onclick="document.getElementById('topup-amount').value=1000" class="flex-1 py-1.5 bg-slate-900 hover:bg-slate-800 rounded-lg text-amber-300 border border-slate-800 font-mono text-[11px] cursor-pointer">+1000</button>
+                </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-800 flex justify-end gap-2">
+                <button onclick="closeTopupModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-all cursor-pointer">Hủy</button>
+                <button onclick="submitTopupCredits()" class="px-5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-purple-600/30 uppercase tracking-wider transition-all cursor-pointer">Xác Nhận Nạp</button>
             </div>
         </div>
     </div>

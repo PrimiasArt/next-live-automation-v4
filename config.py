@@ -19,3 +19,12 @@ PROFILES_DIR = os.path.join(BASE_DIR, "profiles")
 # --- CẤU HÌNH WEB SERVER ---
 WEB_HOST = "0.0.0.0"
 WEB_PORT = 5000
+
+# --- MASTER AI KEYS (CONTENT STUDIO: ELEVENLABS & HEYGEN) ---
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
+HEYGEN_API_KEY = os.getenv("HEYGEN_API_KEY", "")
+
+# --- DATA / STORAGE PATHS ---
+DATA_DIR = os.path.join(BASE_DIR, "data")
+STORAGE_DIR = os.path.join(BASE_DIR, "storage")
+

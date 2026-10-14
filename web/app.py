@@ -6,6 +6,7 @@ from web.routes.auth_routes import auth_bp
 from web.routes.admin_routes import admin_bp
 from web.routes.media_routes import media_bp
 from web.routes.cloud_stream_routes import cloud_stream_bp
+from web.routes.content_studio_routes import content_studio_bp
 from web.routes.live_routes import live_bp
 from web.routes.profile_routes import profile_bp
 from web.routes.stream_routes import stream_bp
@@ -21,11 +22,12 @@ def create_app():
     
     CORS(app, resources={r"/api/*": {"origins": "*", "methods": ["POST", "GET", "PUT", "DELETE", "OPTIONS"], "allow_headers": ["Content-Type", "Authorization"]}})
 
-    # Đăng ký các Blueprints v4 Cloud SaaS
+    # Đăng ký các Blueprints v4 Cloud SaaS & Content Studio
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(media_bp)
     app.register_blueprint(cloud_stream_bp)
+    app.register_blueprint(content_studio_bp)
     
     # Giữ lại các Blueprints điều khiển Stream Processor gốc
     app.register_blueprint(live_bp)
