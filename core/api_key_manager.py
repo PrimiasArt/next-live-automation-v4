@@ -127,22 +127,83 @@ class ApiKeyManager:
 
         return {"success": False, "message": "API Key không chính xác. Vui lòng kiểm tra lại!"}
 
-    def create_client_key(self, name: str, custom_key: Optional[str] = None, max_streams: int = 2, disk_quota_mb: int = 10240, quota_remaining: int = 500) -> Dict[str, Any]:
+    def generate_formatted_api_key(self) -> str:
+        """
+        Sinh mã API Key chuẩn theo cấu trúc yêu cầu của hệ thống:
+        Ví dụ: hlc-live-automation-5381-903-294817-49501-33574-921475-88-10363827-5123-0
+        """
+        import random
+        p1 = random.randint(1000, 9999)
+        p2 = random.randint(100, 999)
+        p3 = random.randint(100000, 999999)
+        p4 = random.randint(10000, 99999)
+        p5 = random.randint(10000, 99999)
+        p6 = random.randint(100000, 999999)
+        p7 = random.randint(10, 99)
+        p8 = random.randint(10000000, 99999999)
+        p9 = random.randint(1000, 9999)
+        p10 = random.randint(0, 9)
+        return f"hlc-live-automation-{p1}-{p2}-{p3}-{p4}-{p5}-{p6}-{p7}-{p8}-{p9}-{p10}"
+
+    def push_to_supabase(self, api_key: str, name: str, quota_remaining: int = 500, expires_at: Optional[str] = None, user_id: Optional[str] = None, key_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Lưu trữ và đồng bộ API Key lên Supabase Cloud Database (Bảng api_keys)
+        """
+        import hashlib
+        import uuid
+        import requests
+        from config import SUPABASE_URL, SUPABASE_ANON_KEY
+
+        key_hash = hashlib.sha256(api_key.strip().encode('utf-8')).hexdigest()
+        kid = key_id or str(uuid.uuid4())
+        uid = user_id or "64f6b97a-c525-4722-b969-646ff6f779e1"
+        headers = {
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+            "Content-Type": "application/json",
+            "Prefer": "return=representation"
+        }
+        payload = {
+            "id": kid,
+            "user_id": uid,
+            "name": name,
+            "key_hash": key_hash,
+            "key_prefix": "auto live",
+            "status": "active",
+            "rate_limit_per_min": 1,
+            "quota_remaining": max(0, int(quota_remaining)),
+            "created_at": time.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+        }
+        if expires_at:
+            payload["expires_at"] = expires_at
+
+        try:
+            res = requests.post(f"{SUPABASE_URL}/rest/v1/api_keys", headers=headers, json=payload, timeout=8)
+            if res.status_code in [200, 201]:
+                return {"success": True, "data": res.json()}
+            else:
+                return {"success": False, "message": f"Supabase error ({res.status_code}): {res.text}"}
+        except Exception as e:
+            return {"success": False, "message": f"Lỗi kết nối Supabase Cloud: {str(e)}"}
+
+    def create_client_key(self, name: str, custom_key: Optional[str] = None, max_streams: int = 2, disk_quota_mb: int = 10240, quota_remaining: int = 500, push_supabase: bool = True, expires_days: Optional[int] = None) -> Dict[str, Any]:
         name = (name or "").strip()
         if not name:
             return {"success": False, "message": "Vui lòng nhập tên khách hàng / tên shop"}
 
-        # Sinh key ngẫu nhiên hoặc dùng key người dùng chỉ định
+        # Sinh key theo cấu trúc chuẩn hoặc dùng key người dùng chỉ định
         if custom_key and custom_key.strip():
             key = custom_key.strip()
         else:
-            key = f"HLC_{self._slugify(name).upper()}_{secrets.token_hex(4).upper()}"
+            key = self.generate_formatted_api_key()
 
         if key in self.keys:
             return {"success": False, "message": f"Mã API Key '{key}' đã tồn tại"}
 
+        import uuid
+        key_id = str(uuid.uuid4())
         user_id = self._slugify(name)
-        # Đảm bảo user_id là duy nhất
+        # Đảm bảo user_id là duy nhất trong local
         base_id = user_id
         counter = 1
         existing_ids = {u.get("id") for u in self.keys.values()}
@@ -150,23 +211,174 @@ class ApiKeyManager:
             user_id = f"{base_id}_{counter}"
             counter += 1
 
+        expires_at_iso = None
+        if expires_days and int(expires_days) > 0:
+            import datetime
+            exp_date = datetime.datetime.utcnow() + datetime.timedelta(days=int(expires_days))
+            expires_at_iso = exp_date.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+
+        # Đẩy lên Supabase Cloud nếu được yêu cầu
+        supabase_res = None
+        supabase_synced = False
+        if push_supabase:
+            supabase_res = self.push_to_supabase(
+                api_key=key,
+                name=name,
+                quota_remaining=quota_remaining,
+                expires_at=expires_at_iso,
+                key_id=key_id
+            )
+            supabase_synced = bool(supabase_res.get("success"))
+
+        import hashlib
+        key_hash = hashlib.sha256(key.strip().encode('utf-8')).hexdigest()
+
         entry = {
             "key": key,
-            "id": user_id,
+            "id": key_id,
+            "user_id": user_id,
             "name": name,
             "role": "client",
             "max_streams": max(1, int(max_streams)),
             "disk_quota_mb": max(512, int(disk_quota_mb)),
             "quota_remaining": max(0, int(quota_remaining)),
             "status": "active",
-            "created_at": time.strftime("%Y-%m-%d %H:%M:%S")
+            "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "expires_at": expires_at_iso,
+            "key_hash": key_hash,
+            "synced_supabase": supabase_synced
         }
         self.keys[key] = entry
         self.save_keys()
-        return {"success": True, "key_data": entry}
+
+        return {
+            "success": True,
+            "key_data": entry,
+            "api_key": key,
+            "supabase_synced": supabase_synced,
+            "supabase_detail": supabase_res
+        }
 
     def list_keys(self) -> List[Dict[str, Any]]:
         return list(self.keys.values())
+
+    def toggle_key_status(self, key: str, new_status: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Bật / Tắt (Active / Revoked) API Key người dùng ngay trên Web App
+        Đồng bộ trực tiếp sang Supabase Cloud Database
+        """
+        if key == MASTER_ADMIN_KEY:
+            return {"success": False, "message": "Không thể khóa Master Admin Key!"}
+
+        if key not in self.keys:
+            return {"success": False, "message": "API Key không tồn tại"}
+
+        item = self.keys[key]
+        current = item.get("status", "active")
+        if not new_status:
+            target_status = "revoked" if current == "active" else "active"
+        else:
+            target_status = "active" if new_status == "active" else "revoked"
+
+        item["status"] = target_status
+        self.keys[key] = item
+        self.save_keys()
+
+        # Đồng bộ sang Supabase Cloud qua key_hash hoặc id
+        import hashlib
+        import requests
+        from config import SUPABASE_URL, SUPABASE_ANON_KEY
+
+        key_hash = item.get("key_hash") or hashlib.sha256(key.strip().encode('utf-8')).hexdigest()
+        kid = item.get("id")
+        headers = {
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+            "Content-Type": "application/json"
+        }
+        supabase_synced = False
+        try:
+            # Thử cập nhật theo id trước, nếu không được thử theo key_hash
+            r = None
+            if kid and len(str(kid)) > 20: # Valid UUID
+                r = requests.patch(f"{SUPABASE_URL}/rest/v1/api_keys?id=eq.{kid}", headers=headers, json={"status": target_status}, timeout=5)
+            if not r or r.status_code not in [200, 204]:
+                r = requests.patch(f"{SUPABASE_URL}/rest/v1/api_keys?key_hash=eq.{key_hash}", headers=headers, json={"status": target_status}, timeout=5)
+            
+            if r and r.status_code in [200, 204]:
+                supabase_synced = True
+                item["synced_supabase"] = True
+                self.save_keys()
+        except Exception:
+            pass
+
+        action_label = "Kích hoạt (Mở khóa)" if target_status == "active" else "Tạm khóa (Tắt)"
+        return {
+            "success": True,
+            "key": key,
+            "status": target_status,
+            "supabase_synced": supabase_synced,
+            "message": f"Đã {action_label} API Key '{item.get('name', key)}' thành công!"
+        }
+
+    def sync_all_from_supabase(self) -> Dict[str, Any]:
+        """
+        Kéo và đồng bộ toàn bộ danh sách API Keys từ Supabase Cloud về Local
+        """
+        import requests
+        from config import SUPABASE_URL, SUPABASE_ANON_KEY
+
+        headers = {
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": f"Bearer {SUPABASE_ANON_KEY}"
+        }
+        try:
+            res = requests.get(f"{SUPABASE_URL}/rest/v1/api_keys?select=*", headers=headers, timeout=10)
+            if res.status_code != 200:
+                return {"success": False, "message": f"Lỗi truy vấn Supabase ({res.status_code}): {res.text}"}
+
+            cloud_keys = res.json()
+            synced_count = 0
+            for ck in cloud_keys:
+                ck_id = ck.get("id")
+                ck_hash = ck.get("key_hash")
+                ck_status = ck.get("status", "active")
+                ck_quota = ck.get("quota_remaining", 0)
+                ck_name = ck.get("name") or f"Khách hàng {str(ck_id)[:8]}"
+
+                # Tìm key trong local
+                found = False
+                for local_k, local_entry in self.keys.items():
+                    if local_entry.get("id") == ck_id or local_entry.get("key_hash") == ck_hash:
+                        local_entry["status"] = ck_status
+                        local_entry["quota_remaining"] = ck_quota
+                        local_entry["name"] = ck_name
+                        local_entry["synced_supabase"] = True
+                        found = True
+                        synced_count += 1
+                        break
+
+                if not found and ck.get("name") != "Admin":
+                    key_placeholder = f"SUPA_{str(ck_id)[:8]}"
+                    self.keys[key_placeholder] = {
+                        "key": key_placeholder,
+                        "id": str(ck_id),
+                        "name": ck_name,
+                        "role": "client",
+                        "max_streams": 2,
+                        "disk_quota_mb": 10240,
+                        "quota_remaining": ck_quota,
+                        "status": ck_status,
+                        "created_at": ck.get("created_at", time.strftime("%Y-%m-%d %H:%M:%S")),
+                        "key_hash": ck_hash,
+                        "synced_supabase": True
+                    }
+                    synced_count += 1
+
+            self.save_keys()
+            return {"success": True, "count": synced_count, "total_cloud": len(cloud_keys)}
+        except Exception as e:
+            return {"success": False, "message": f"Lỗi kết nối Supabase Cloud: {str(e)}"}
 
     def update_key(self, key: str, updates: Dict[str, Any]) -> Dict[str, Any]:
         if key not in self.keys:
@@ -181,8 +393,24 @@ class ApiKeyManager:
             item["disk_quota_mb"] = max(512, int(updates["disk_quota_mb"]))
         if "quota_remaining" in updates:
             item["quota_remaining"] = max(0, int(updates["quota_remaining"]))
-        if "status" in updates and updates["status"] in ["active", "disabled"]:
-            item["status"] = updates["status"]
+        if "status" in updates:
+            st = updates["status"]
+            if st in ["active", "revoked", "disabled"]:
+                item["status"] = "revoked" if st in ["revoked", "disabled"] else "active"
+                # Đồng bộ trạng thái mới sang Supabase
+                try:
+                    import hashlib
+                    import requests
+                    from config import SUPABASE_URL, SUPABASE_ANON_KEY
+                    khash = item.get("key_hash") or hashlib.sha256(key.strip().encode()).hexdigest()
+                    requests.patch(
+                        f"{SUPABASE_URL}/rest/v1/api_keys?key_hash=eq.{khash}",
+                        headers={"apikey": SUPABASE_ANON_KEY, "Authorization": f"Bearer {SUPABASE_ANON_KEY}", "Content-Type": "application/json"},
+                        json={"status": item["status"]},
+                        timeout=5
+                    )
+                except Exception:
+                    pass
 
         self.keys[key] = item
         self.save_keys()

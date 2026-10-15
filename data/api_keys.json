@@ -13,13 +13,14 @@
   "hlc-live-automation-5381-903-294817-49501-33574-921475-88-10363827-5123-0": {
     "key": "hlc-live-automation-5381-903-294817-49501-33574-921475-88-10363827-5123-0",
     "id": "97e662b4-5d74-42f5-9821-2295f05a803f",
-    "name": "Khách hàng 97e662b4",
+    "name": "IP One",
     "role": "client",
     "max_streams": 2,
     "disk_quota_mb": 10240,
-    "quota_remaining": 994196,
+    "quota_remaining": 993964,
     "status": "active",
-    "created_at": "2026-10-12 11:41:08"
+    "created_at": "2026-10-12 11:41:08",
+    "synced_supabase": true
   },
   "hlc-live-automation-admin-12354-4856464-4687-438137-68817-46871-31587169-187146-001": {
     "key": "hlc-live-automation-admin-12354-4856464-4687-438137-68817-46871-31587169-187146-001",
@@ -30,7 +31,7 @@
     "disk_quota_mb": 102400,
     "quota_remaining": 999999,
     "status": "active",
-    "created_at": "2026-10-14 18:24:50"
+    "created_at": "2026-10-15 14:44:03"
   },
   "HLC_HXBL_8BD31A33": {
     "key": "HLC_HXBL_8BD31A33",
@@ -42,5 +43,83 @@
     "quota_remaining": 1000,
     "status": "active",
     "created_at": "2026-10-12 12:02:46"
+  },
+  "SUPA_037e23e5": {
+    "key": "SUPA_037e23e5",
+    "id": "037e23e5-3e8b-4b38-8d69-ed410372f68f",
+    "name": "SE_HLC",
+    "role": "client",
+    "max_streams": 2,
+    "disk_quota_mb": 10240,
+    "quota_remaining": 15100,
+    "status": "active",
+    "created_at": "2026-05-15T08:39:17+00:00",
+    "key_hash": "fbade06641fa9c2b4b843479c331db13bcdd56b5dc75b6bb97f3f9d83d6f494a",
+    "synced_supabase": true
+  },
+  "SUPA_ad9187cd": {
+    "key": "SUPA_ad9187cd",
+    "id": "ad9187cd-7607-413b-a9a9-aba8a588c47b",
+    "name": "Shop Test Thoi Trang VIP",
+    "role": "client",
+    "max_streams": 2,
+    "disk_quota_mb": 10240,
+    "quota_remaining": 1000,
+    "status": "active",
+    "created_at": "2026-10-15T14:40:06+00:00",
+    "key_hash": "53b15a1b892ca7984d1f0825e9a97f70af3827822f090d92c7daf50dde487a64",
+    "synced_supabase": true
+  },
+  "SUPA_148b2b88": {
+    "key": "SUPA_148b2b88",
+    "id": "148b2b88-7ce1-4b82-a65e-e3d153315818",
+    "name": "TESY KEY",
+    "role": "client",
+    "max_streams": 2,
+    "disk_quota_mb": 10240,
+    "quota_remaining": 971495,
+    "status": "active",
+    "created_at": "2026-06-22T04:01:02+00:00",
+    "key_hash": "cc79c993d7cb93021ac8d392614bed2dd3afe9234bf8eac074af9afe8e927b57",
+    "synced_supabase": true
+  },
+  "SUPA_a20fc142": {
+    "key": "SUPA_a20fc142",
+    "id": "a20fc142-5970-4ea9-8d77-aa11536e5b0d",
+    "name": "merries",
+    "role": "client",
+    "max_streams": 2,
+    "disk_quota_mb": 10240,
+    "quota_remaining": 0,
+    "status": "active",
+    "created_at": "2026-06-04T10:00:04+00:00",
+    "key_hash": "35f26100ab71c07ee568e235b6d3b3474472617a5ee0cc8d07ac1ea407775427",
+    "synced_supabase": true
+  },
+  "SUPA_3dbaaddd": {
+    "key": "SUPA_3dbaaddd",
+    "id": "3dbaaddd-3ad2-4d50-8174-c4375800dee2",
+    "name": "WIPRO",
+    "role": "client",
+    "max_streams": 2,
+    "disk_quota_mb": 10240,
+    "quota_remaining": 100000,
+    "status": "active",
+    "created_at": "2026-06-05T08:36:34+00:00",
+    "key_hash": "6d285e75b902e37d46aa0df8c7df927ea4401ae14c4706b6102bef198ed93a02",
+    "synced_supabase": true
+  },
+  "SUPA_d8f4edfc": {
+    "key": "SUPA_d8f4edfc",
+    "id": "d8f4edfc-9e2b-41f5-b287-96926e2d82a9",
+    "name": "NEYUH BRA",
+    "role": "client",
+    "max_streams": 2,
+    "disk_quota_mb": 10240,
+    "quota_remaining": 16662,
+    "status": "active",
+    "created_at": "2026-05-14T07:38:49+00:00",
+    "key_hash": "2e08ece0d2dc06c78add128f82457c4d4aa187d12b522e019d3f2ae028f9ce13",
+    "synced_supabase": true
   }
 }

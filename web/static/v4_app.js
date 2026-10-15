@@ -790,8 +790,8 @@ async function loadAdminPanel() {
             renderAdminKeysTable(keysData.keys);
         }
 
-        // 3. Cấu hình AI Studio
-        loadAdminAIConfig();
+        // 3. Cấu hình Nền Tảng & AI Studio
+        loadPlatformConfigs();
     } catch (e) {
         console.error("Admin load error:", e);
     }
@@ -804,35 +804,44 @@ function renderAdminKeysTable(keys) {
     let html = '';
     keys.forEach(k => {
         const isMaster = k.role === 'admin' || k.key === 'hlc-live-automation-admin-12354-4856464-4687-438137-68817-46871-31587169-187146-001';
+        const isActive = k.status === 'active';
 
         html += `
             <tr class="border-b border-slate-800/80 hover:bg-slate-900/40 transition-all text-xs">
-                <td class="py-3 px-4 font-mono font-bold text-white flex items-center gap-2">
-                    <span class="truncate max-w-[180px]" title="${k.key}">${k.key}</span>
-                    <button onclick="copyToClipboard('${k.key}')" class="p-1 rounded bg-slate-800 hover:text-sky-300 text-slate-400 cursor-pointer" title="Sao chép Mã Khóa">
-                        📋
-                    </button>
+                <td class="py-3 px-4 font-mono font-bold text-white">
+                    <div class="flex items-center gap-2">
+                        <span class="truncate max-w-[210px] text-purple-300 select-all" title="${k.key}">${k.key}</span>
+                        <button onclick="copyKeyToClipboard('${k.key}')" class="p-1 rounded bg-slate-800 hover:bg-purple-600 hover:text-white text-slate-400 cursor-pointer transition-all" title="Sao chép Mã Khóa">
+                            📋
+                        </button>
+                    </div>
                 </td>
-                <td class="py-3 px-4 text-slate-200 font-semibold">${k.name}</td>
+                <td class="py-3 px-4 text-slate-200 font-semibold">${escapeHtml(k.name)}</td>
                 <td class="py-3 px-4 font-mono font-bold text-sky-400">${k.active_streams || 0} / ${k.max_streams}</td>
                 <td class="py-3 px-4 font-mono text-slate-300">${(k.disk_usage_mb || 0).toLocaleString()} MB / ${(k.disk_quota_mb || 0).toLocaleString()} MB</td>
                 <td class="py-3 px-4 font-mono font-bold text-purple-300">
                     <span>${(k.quota_remaining !== undefined ? k.quota_remaining : 0).toLocaleString()} Credits</span>
                 </td>
                 <td class="py-3 px-4">
-                    <span class="text-[10px] font-bold ${k.status === 'active' ? 'text-emerald-400' : 'text-rose-400'} uppercase">
-                        ${k.status === 'active' ? '● Hoạt động' : '○ Tạm khóa'}
-                    </span>
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${isActive ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border-rose-500/30'}">
+                            ${isActive ? '● Hoạt động' : '○ Tạm khóa'}
+                        </span>
+                        ${k.synced_supabase ? `<span class="px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/30 text-[9px] font-mono">☁️ Cloud</span>` : ''}
+                    </div>
                 </td>
                 <td class="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
                     ${!isMaster ? `
+                        <button onclick="toggleKeyStatus('${k.key}', '${isActive ? 'revoked' : 'active'}')" class="px-2 py-1 rounded ${isActive ? 'bg-rose-600/20 hover:bg-rose-600 text-rose-300 border-rose-500/40' : 'bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 border-emerald-500/40'} hover:text-white border text-[11px] font-bold transition-all cursor-pointer" title="${isActive ? 'Tạm khóa (Tắt) mã API này ngay lập tức' : 'Kích hoạt (Mở) mã API này'}">
+                            ${isActive ? '🔒 Khóa' : '🔓 Mở'}
+                        </button>
                         <button onclick="openTopupModal('${k.key}', '${escapeHtml(k.name)}')" class="px-2 py-1 rounded bg-purple-600/20 hover:bg-purple-600 text-purple-300 hover:text-white border border-purple-500/40 text-[11px] font-bold transition-all cursor-pointer" title="Nạp thêm Credits gói AI">
                             ✨ + Nạp
                         </button>
-                        <button onclick="adminToggleKeyStatus('${k.key}', '${k.status}')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold transition-all cursor-pointer">
-                            ${k.status === 'active' ? 'Khóa' : 'Mở'}
+                        <button onclick="copyKeyToClipboard('${k.key}')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold transition-all cursor-pointer" title="Sao chép mã API">
+                            📋 Copy
                         </button>
-                        <button onclick="adminDeleteKey('${k.key}')" class="px-2 py-1 rounded bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 text-[11px] font-bold transition-all cursor-pointer">
+                        <button onclick="adminDeleteKey('${k.key}')" class="px-2 py-1 rounded bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 text-[11px] font-bold transition-all cursor-pointer" title="Xóa mã này">
                             Xóa
                         </button>
                     ` : `<span class="text-amber-400 font-semibold text-[11px]">Khóa Gốc (Vô Hạn)</span>`}
@@ -880,9 +889,44 @@ function renderAdminGlobalStreams(streams) {
     container.innerHTML = html;
 }
 
+async function generateNewKeyCode() {
+    const keyInput = document.getElementById('nk-key');
+    if (!keyInput) return;
+    keyInput.value = "Đang sinh mã chuẩn...";
+    try {
+        const res = await fetch('/api/admin/keys/generate-code', { headers: getAuthHeaders() });
+        const data = await res.json();
+        if (data.success && data.key) {
+            keyInput.value = data.key;
+        } else {
+            keyInput.value = `hlc-live-automation-${Math.floor(1000+Math.random()*9000)}-${Math.floor(100+Math.random()*900)}-${Math.floor(100000+Math.random()*900000)}-${Math.floor(10000+Math.random()*90000)}-${Math.floor(10000+Math.random()*90000)}-${Math.floor(100000+Math.random()*900000)}-${Math.floor(10+Math.random()*90)}-${Math.floor(10000000+Math.random()*90000000)}-${Math.floor(1000+Math.random()*9000)}-0`;
+        }
+    } catch (e) {
+        keyInput.value = `hlc-live-automation-${Math.floor(1000+Math.random()*9000)}-${Math.floor(100+Math.random()*900)}-${Math.floor(100000+Math.random()*900000)}-${Math.floor(10000+Math.random()*90000)}-${Math.floor(10000+Math.random()*90000)}-${Math.floor(100000+Math.random()*900000)}-${Math.floor(10+Math.random()*90)}-${Math.floor(10000000+Math.random()*90000000)}-${Math.floor(1000+Math.random()*9000)}-0`;
+    }
+}
+
 function openNewKeyModal() {
     const modal = document.getElementById('modal-new-key');
-    if (modal) modal.classList.remove('hidden');
+    if (modal) {
+        modal.classList.remove('hidden');
+        const nameInput = document.getElementById('nk-name');
+        if (nameInput) {
+            nameInput.value = '';
+            setTimeout(() => nameInput.focus(), 100);
+        }
+        const creditsInput = document.getElementById('nk-credits');
+        if (creditsInput) creditsInput.value = '500';
+        const streamsInput = document.getElementById('nk-streams');
+        if (streamsInput) streamsInput.value = '2';
+        const diskInput = document.getElementById('nk-disk');
+        if (diskInput) diskInput.value = '10240';
+        const durationSelect = document.getElementById('nk-duration');
+        if (durationSelect) durationSelect.value = '0';
+        const pushCheck = document.getElementById('nk-push-supabase');
+        if (pushCheck) pushCheck.checked = true;
+        generateNewKeyCode();
+    }
 }
 
 function closeNewKeyModal() {
@@ -892,13 +936,20 @@ function closeNewKeyModal() {
 
 async function submitCreateApiKey() {
     const name = document.getElementById('nk-name').value.trim();
-    const customKey = document.getElementById('nk-custom-key').value.trim();
+    const customKey = document.getElementById('nk-key').value.trim();
     const maxStreams = parseInt(document.getElementById('nk-streams').value) || 2;
     const diskMb = parseInt(document.getElementById('nk-disk').value) || 10240;
     const initialCredits = parseInt(document.getElementById('nk-credits') ? document.getElementById('nk-credits').value : 500) || 500;
+    const durationDays = parseInt(document.getElementById('nk-duration') ? document.getElementById('nk-duration').value : 0) || 0;
+    const pushSupabase = document.getElementById('nk-push-supabase') ? document.getElementById('nk-push-supabase').checked : true;
 
     if (!name) {
-        alert("Vui lòng nhập Tên Kênh / Shop!");
+        alert("Vui lòng nhập Tên Kênh / Tên Shop!");
+        document.getElementById('nk-name').focus();
+        return;
+    }
+    if (!customKey) {
+        alert("Vui lòng sinh hoặc nhập Mã API Key!");
         return;
     }
 
@@ -911,15 +962,16 @@ async function submitCreateApiKey() {
                 custom_key: customKey,
                 max_streams: maxStreams,
                 disk_quota_mb: diskMb,
-                quota_remaining: initialCredits
+                quota_remaining: initialCredits,
+                push_supabase: pushSupabase,
+                expires_days: durationDays > 0 ? durationDays : null
             })
         });
         const data = await res.json();
         if (data.success && data.key_data) {
             closeNewKeyModal();
             loadAdminPanel();
-            const createdKey = data.key_data.key;
-            alert(`🎉 CẤP MÃ KHÓA THÀNH CÔNG!\n\nKênh / Shop: ${name}\nMã Khóa: ${createdKey}\nAI Credits: ${initialCredits}\n\n👉 Bạn hãy gửi mã này cho người dùng để kích hoạt ứng dụng.`);
+            openKeySuccessModal(data.api_key || customKey, name, initialCredits);
         } else {
             alert(data.message || "Không thể cấp Mã Khóa");
         }
@@ -928,13 +980,56 @@ async function submitCreateApiKey() {
     }
 }
 
-async function adminToggleKeyStatus(key, currentStatus) {
-    const newStatus = (currentStatus === 'active') ? 'disabled' : 'active';
+function openKeySuccessModal(key, name, credits) {
+    const modal = document.getElementById('modal-key-created-success');
+    if (!modal) return;
+    const nameEl = document.getElementById('created-key-name');
+    const creditsEl = document.getElementById('created-key-credits');
+    const displayEl = document.getElementById('created-key-display');
+    const textEl = document.getElementById('created-key-copy-text');
+    const iconEl = document.getElementById('created-key-copy-icon');
+
+    if (nameEl) nameEl.innerText = name;
+    if (creditsEl) creditsEl.innerText = `${credits.toLocaleString()} Credits`;
+    if (displayEl) displayEl.innerText = key;
+    if (textEl) textEl.innerText = "Sao Chép Mã Key Gửi Khách";
+    if (iconEl) iconEl.innerText = "📋";
+
+    modal.classList.remove('hidden');
+}
+
+function closeKeySuccessModal() {
+    const modal = document.getElementById('modal-key-created-success');
+    if (modal) modal.classList.add('hidden');
+}
+
+function copyCreatedKey() {
+    const key = document.getElementById('created-key-display').innerText.trim();
+    if (!key) return;
+    navigator.clipboard.writeText(key).then(() => {
+        const textEl = document.getElementById('created-key-copy-text');
+        const iconEl = document.getElementById('created-key-copy-icon');
+        if (textEl) textEl.innerText = "Đã Sao Chép Thành Công!";
+        if (iconEl) iconEl.innerText = "✅";
+        setTimeout(() => {
+            if (textEl) textEl.innerText = "Sao Chép Mã Key Gửi Khách";
+            if (iconEl) iconEl.innerText = "📋";
+        }, 2500);
+    });
+}
+
+function copyKeyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        alert(`📋 Đã sao chép Mã API Key vào Clipboard:\n\n${text}`);
+    });
+}
+
+async function toggleKeyStatus(key, targetStatus) {
     try {
-        const res = await fetch(`/api/admin/keys/${encodeURIComponent(key)}`, {
-            method: 'PUT',
+        const res = await fetch(`/api/admin/keys/${encodeURIComponent(key)}/toggle`, {
+            method: 'POST',
             headers: getAuthHeaders(),
-            body: JSON.stringify({ status: newStatus })
+            body: JSON.stringify({ status: targetStatus })
         });
         const data = await res.json();
         if (data.success) {
@@ -947,8 +1042,26 @@ async function adminToggleKeyStatus(key, currentStatus) {
     }
 }
 
+async function syncKeysFromSupabase() {
+    try {
+        const res = await fetch('/api/admin/keys/sync-supabase', {
+            method: 'POST',
+            headers: getAuthHeaders()
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert(`🎉 ĐỒNG BỘ SUPABASE CLOUD THÀNH CÔNG!\n\nĐã đồng bộ ${data.count} khóa từ Supabase Cloud (Tổng Cloud: ${data.total_cloud} keys).`);
+            loadAdminPanel();
+        } else {
+            alert(data.message || "Lỗi đồng bộ Supabase Cloud");
+        }
+    } catch (e) {
+        alert("Lỗi kết nối: " + e.message);
+    }
+}
+
 async function adminDeleteKey(key) {
-    if (!confirm(`XÁC NHẬN: Bạn có chắc chắn muốn xóa vĩnh viễn Mã Khóa "${key}"?`)) return;
+    if (!confirm(`XÁC NHẬN: Bạn có chắc chắn muốn xóa vĩnh viễn Mã Khóa "${key}" trên cả máy chủ và Supabase Cloud?`)) return;
     try {
         const res = await fetch(`/api/admin/keys/${encodeURIComponent(key)}`, {
             method: 'DELETE',
@@ -1367,53 +1480,239 @@ function streamCurrentAIVideoCloud() {
 
 // --- ADMIN AI CONFIG & TOP-UP CREDITS ---
 
-async function loadAdminAIConfig() {
+// --- ADMIN PLATFORM CONFIG & BALANCE CHECKERS ---
+
+function toggleInputVisibility(id) {
+    const input = document.getElementById(id);
+    if (!input) return;
+    input.type = input.type === 'password' ? 'text' : 'password';
+}
+
+async function loadPlatformConfigs() {
     try {
-        const res = await fetch('/api/content-studio/admin/config', { headers: getAuthHeaders() });
+        const res = await fetch('/api/admin/platforms/config', { headers: getAuthHeaders() });
         const data = await res.json();
         if (data.success) {
             const elStatus = document.getElementById('admin-ai-el-status');
             const hgStatus = document.getElementById('admin-ai-hg-status');
+            const supaStatus = document.getElementById('admin-ai-supa-status');
+            const supaUrl = document.getElementById('admin-ai-supa-url');
             const costVoice = document.getElementById('admin-ai-cost-voice');
             const costVideo = document.getElementById('admin-ai-cost-video');
 
-            if (elStatus) elStatus.innerText = data.has_elevenlabs ? `Đã cấu hình (${data.elevenlabs_masked})` : "Chưa có key";
-            if (hgStatus) hgStatus.innerText = data.has_heygen ? `Đã cấu hình (${data.heygen_masked})` : "Chưa có key";
+            if (elStatus) {
+                elStatus.innerText = data.has_elevenlabs ? `Đã có: ${data.elevenlabs_masked}` : "Chưa có key";
+                elStatus.className = `text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${data.has_elevenlabs ? 'bg-purple-500/20 text-purple-300' : 'bg-slate-800 text-slate-400'}`;
+            }
+            if (hgStatus) {
+                hgStatus.innerText = data.has_heygen ? `Đã có: ${data.heygen_masked}` : "Chưa có key";
+                hgStatus.className = `text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${data.has_heygen ? 'bg-sky-500/20 text-sky-300' : 'bg-slate-800 text-slate-400'}`;
+            }
+            if (supaUrl && data.supabase_url) supaUrl.value = data.supabase_url;
+            if (supaStatus) {
+                supaStatus.innerText = data.supabase_anon_masked ? `Key: ${data.supabase_anon_masked}` : "Chưa có key";
+                supaStatus.className = `text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${data.supabase_anon_masked ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'}`;
+            }
             if (costVoice && data.cost_per_voice) costVoice.value = data.cost_per_voice;
             if (costVideo && data.cost_per_video) costVideo.value = data.cost_per_video;
         }
-    } catch (e) {}
+    } catch (e) {
+        console.error("loadPlatformConfigs error:", e);
+    }
 }
 
-async function saveAdminAIConfig() {
+const loadAdminAIConfig = loadPlatformConfigs;
+
+async function savePlatformConfigs() {
     const elInput = document.getElementById('admin-ai-el-key');
     const hgInput = document.getElementById('admin-ai-hg-key');
+    const supaUrlInput = document.getElementById('admin-ai-supa-url');
+    const supaKeyInput = document.getElementById('admin-ai-supa-key');
     const costVoice = document.getElementById('admin-ai-cost-voice');
     const costVideo = document.getElementById('admin-ai-cost-video');
 
     const payload = {};
     if (elInput && elInput.value.trim()) payload.elevenlabs_api_key = elInput.value.trim();
     if (hgInput && hgInput.value.trim()) payload.heygen_api_key = hgInput.value.trim();
+    if (supaUrlInput && supaUrlInput.value.trim()) payload.supabase_url = supaUrlInput.value.trim();
+    if (supaKeyInput && supaKeyInput.value.trim()) payload.supabase_anon_key = supaKeyInput.value.trim();
     if (costVoice) payload.cost_per_voice = parseInt(costVoice.value) || 2;
     if (costVideo) payload.cost_per_video = parseInt(costVideo.value) || 10;
 
     try {
-        const res = await fetch('/api/content-studio/admin/config', {
+        const res = await fetch('/api/admin/platforms/config', {
             method: 'POST',
             headers: getAuthHeaders(),
             body: JSON.stringify(payload)
         });
         const data = await res.json();
         if (data.success) {
-            alert("🎉 Đã lưu cấu hình Master AI thành công!");
+            alert("🎉 ĐÃ LƯU CẤU HÌNH API CÁC NỀN TẢNG THÀNH CÔNG!");
             if (elInput) elInput.value = '';
             if (hgInput) hgInput.value = '';
-            loadAdminAIConfig();
+            if (supaKeyInput) supaKeyInput.value = '';
+            loadPlatformConfigs();
         } else {
             alert(data.message || "Lỗi lưu cấu hình");
         }
     } catch (e) {
         alert("Lỗi kết nối: " + e.message);
+    }
+}
+
+const saveAdminAIConfig = savePlatformConfigs;
+
+async function checkElevenlabsCredits() {
+    const elInput = document.getElementById('admin-ai-el-key');
+    const key = elInput ? elInput.value.trim() : '';
+    const resBox = document.getElementById('admin-ai-el-result');
+    const statusBadge = document.getElementById('admin-ai-el-status');
+
+    if (statusBadge) {
+        statusBadge.innerText = 'Đang check...';
+        statusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono font-bold animate-pulse';
+    }
+    if (resBox) {
+        resBox.classList.remove('hidden');
+        resBox.innerHTML = '<span class="text-slate-400">⏳ Đang kết nối ElevenLabs Subscription API...</span>';
+    }
+
+    try {
+        const res = await fetch('/api/admin/platforms/check-elevenlabs', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ api_key: key || undefined })
+        });
+        const data = await res.json();
+        if (data.success) {
+            if (statusBadge) {
+                statusBadge.innerText = '🟢 Hoạt động';
+                statusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-mono font-bold';
+            }
+            if (resBox) {
+                resBox.innerHTML = `
+                    <div class="text-emerald-400 font-bold flex items-center gap-1.5">
+                        <span>✅</span> Kết Nối ElevenLabs OK!
+                    </div>
+                    <div class="mt-1 text-slate-300">Gói Dịch Vụ: <span class="font-bold uppercase text-purple-300">${data.tier}</span> (${data.status})</div>
+                    <div class="text-slate-300">Ký Tự Còn Lại: <span class="font-mono font-bold text-amber-400 text-xs">${data.remaining_characters.toLocaleString()}</span> / ${data.character_limit.toLocaleString()}</div>
+                    <div class="text-slate-400 text-[10px] mt-0.5">Ngày Reset Hạn Mức: ${data.reset_date}</div>
+                `;
+            }
+        } else {
+            if (statusBadge) {
+                statusBadge.innerText = '🔴 Lỗi';
+                statusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 font-mono font-bold';
+            }
+            if (resBox) {
+                resBox.innerHTML = `<span class="text-rose-400 font-medium">❌ ${escapeHtml(data.message)}</span>`;
+            }
+        }
+    } catch (e) {
+        if (resBox) resBox.innerHTML = `<span class="text-rose-400">❌ Lỗi kết nối: ${escapeHtml(e.message)}</span>`;
+    }
+}
+
+async function checkHeygenCredits() {
+    const hgInput = document.getElementById('admin-ai-hg-key');
+    const key = hgInput ? hgInput.value.trim() : '';
+    const resBox = document.getElementById('admin-ai-hg-result');
+    const statusBadge = document.getElementById('admin-ai-hg-status');
+
+    if (statusBadge) {
+        statusBadge.innerText = 'Đang check...';
+        statusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono font-bold animate-pulse';
+    }
+    if (resBox) {
+        resBox.classList.remove('hidden');
+        resBox.innerHTML = '<span class="text-slate-400">⏳ Đang kết nối HeyGen Quota API...</span>';
+    }
+
+    try {
+        const res = await fetch('/api/admin/platforms/check-heygen', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ api_key: key || undefined })
+        });
+        const data = await res.json();
+        if (data.success) {
+            if (statusBadge) {
+                statusBadge.innerText = '🟢 Hoạt động';
+                statusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-mono font-bold';
+            }
+            if (resBox) {
+                resBox.innerHTML = `
+                    <div class="text-sky-400 font-bold flex items-center gap-1.5">
+                        <span>✅</span> Kết Nối HeyGen OK!
+                    </div>
+                    <div class="mt-1 text-slate-300">Credits Khả Dụng: <span class="font-mono font-black text-amber-400 text-sm">${data.remaining_quota}</span> Video Credits</div>
+                    <div class="text-slate-400 text-[10px]">(Dùng chung qua Master Key)</div>
+                `;
+            }
+        } else {
+            if (statusBadge) {
+                statusBadge.innerText = '🔴 Lỗi';
+                statusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 font-mono font-bold';
+            }
+            if (resBox) {
+                resBox.innerHTML = `<span class="text-rose-400 font-medium">❌ ${escapeHtml(data.message)}</span>`;
+            }
+        }
+    } catch (e) {
+        if (resBox) resBox.innerHTML = `<span class="text-rose-400">❌ Lỗi kết nối: ${escapeHtml(e.message)}</span>`;
+    }
+}
+
+async function checkSupabaseConnection() {
+    const supaUrl = document.getElementById('admin-ai-supa-url') ? document.getElementById('admin-ai-supa-url').value.trim() : '';
+    const supaKey = document.getElementById('admin-ai-supa-key') ? document.getElementById('admin-ai-supa-key').value.trim() : '';
+    const resBox = document.getElementById('admin-ai-supa-result');
+    const statusBadge = document.getElementById('admin-ai-supa-status');
+
+    if (statusBadge) {
+        statusBadge.innerText = 'Đang check...';
+        statusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono font-bold animate-pulse';
+    }
+    if (resBox) {
+        resBox.classList.remove('hidden');
+        resBox.innerHTML = '<span class="text-slate-400">⏳ Đang kiểm tra Supabase Cloud Database...</span>';
+    }
+
+    try {
+        const res = await fetch('/api/admin/platforms/check-supabase', {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({
+                supabase_url: supaUrl || undefined,
+                supabase_anon_key: supaKey || undefined
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            if (statusBadge) {
+                statusBadge.innerText = '🟢 Hoạt động';
+                statusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-mono font-bold';
+            }
+            if (resBox) {
+                resBox.innerHTML = `
+                    <div class="text-emerald-400 font-bold flex items-center gap-1.5">
+                        <span>✅</span> Kết Nối Supabase Cloud OK!
+                    </div>
+                    <div class="mt-1 text-slate-300">Tổng Keys Trên Cloud: <span class="font-mono font-bold text-sky-400">${data.total_keys}</span> (${data.active_keys} Active)</div>
+                    <div class="text-slate-300">Tổng Quota Cấp Phát: <span class="font-mono font-bold text-purple-300">${data.total_quota.toLocaleString()}</span> Credits</div>
+                `;
+            }
+        } else {
+            if (statusBadge) {
+                statusBadge.innerText = '🔴 Lỗi';
+                statusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 font-mono font-bold';
+            }
+            if (resBox) {
+                resBox.innerHTML = `<span class="text-rose-400 font-medium">❌ ${escapeHtml(data.message)}</span>`;
+            }
+        }
+    } catch (e) {
+        if (resBox) resBox.innerHTML = `<span class="text-rose-400">❌ Lỗi kết nối: ${escapeHtml(e.message)}</span>`;
     }
 }
 

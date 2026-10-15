@@ -570,75 +570,148 @@
                 </div>
             </div>
 
-            <!-- Cấu Hình Master AI API Key (ElevenLabs & HeyGen) -->
-            <div class="glass p-5 rounded-2xl border border-purple-500/30 space-y-4 shadow-xl">
-                <div class="flex justify-between items-center pb-2 border-b border-slate-800">
+            <!-- CẤU HÌNH API NỀN TẢNG & KIỂM TRA SỐ DƯ (PLATFORM APIS & BALANCE CHECK) -->
+            <div class="glass p-5 rounded-2xl border border-purple-500/30 space-y-5 shadow-xl">
+                <div class="flex flex-wrap justify-between items-center pb-3 border-b border-slate-800 gap-3">
                     <div>
                         <h4 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                            <span>🤖 Cấu Hình Master AI API Key (Content Studio)</span>
-                            <span class="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-mono font-bold">ADMIN ONLY</span>
+                            <span>🛠️ Cấu Hình API Các Nền Tảng & Kiểm Tra Số Dư (Platform APIs)</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-mono font-bold">ADMIN MASTER</span>
                         </h4>
-                        <p class="text-[11px] text-slate-400">Thiết lập 1 lần duy nhất cho toàn hệ thống. Khách hàng sử dụng chung Master Key và bị trừ theo hạn mức Credits đã mua.</p>
+                        <p class="text-[11px] text-slate-400">Nhập API Key từ các nhà cung cấp (ElevenLabs, HeyGen, Supabase Cloud), lưu lại và kiểm tra số dư Credits thực tế theo thời gian thực.</p>
                     </div>
-                    <button onclick="saveAdminAIConfig()" class="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-600/25 transition-all cursor-pointer">
-                        💾 Lưu Cấu Hình AI
-                    </button>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="space-y-1.5">
-                        <label class="text-xs font-semibold text-slate-300 flex justify-between">
-                            <span>ElevenLabs API Key:</span>
-                            <span id="admin-ai-el-status" class="text-[10px] text-slate-400 font-mono">Đang kiểm tra...</span>
-                        </label>
-                        <input type="password" id="admin-ai-el-key" placeholder="Nhập ElevenLabs API Key (bắt đầu bằng xi-...)" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-purple-500 font-mono transition-all">
-                    </div>
-                    <div class="space-y-1.5">
-                        <label class="text-xs font-semibold text-slate-300 flex justify-between">
-                            <span>HeyGen API Key:</span>
-                            <span id="admin-ai-hg-status" class="text-[10px] text-slate-400 font-mono">Đang kiểm tra...</span>
-                        </label>
-                        <input type="password" id="admin-ai-hg-key" placeholder="Nhập HeyGen API Key..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-purple-500 font-mono transition-all">
+                    <div class="flex items-center gap-2">
+                        <button onclick="savePlatformConfigs()" class="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-600/25 transition-all cursor-pointer flex items-center gap-1.5">
+                            <span>💾 Lưu Cấu Hình Nền Tảng</span>
+                        </button>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-4 pt-1 text-xs">
-                    <div class="flex items-center gap-2">
-                        <span class="text-slate-400">Phí trừ Voice:</span>
-                        <input type="number" id="admin-ai-cost-voice" value="2" min="1" class="w-16 bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-center text-white font-mono outline-none focus:border-purple-500">
-                        <span class="text-slate-500">Credits / Lần</span>
+                <!-- 3 Thẻ Nền Tảng: ElevenLabs, HeyGen, Supabase -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    <!-- Nền tảng 1: ElevenLabs AI -->
+                    <div class="bg-slate-950/80 p-4 rounded-xl border border-slate-800 space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                                <span>🎙️</span> ElevenLabs AI (Voice TTS)
+                            </span>
+                            <span id="admin-ai-el-status" class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono font-bold">Chưa check</span>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[11px] font-semibold text-slate-400">xi-api-key:</label>
+                            <div class="relative">
+                                <input type="password" id="admin-ai-el-key" placeholder="Nhập ElevenLabs Key (xi-...)" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 pr-9 text-xs text-white outline-none focus:border-purple-500 font-mono transition-all">
+                                <button type="button" onclick="toggleInputVisibility('admin-ai-el-key')" class="absolute right-2.5 top-2.5 text-slate-400 hover:text-white text-xs">👁️</button>
+                            </div>
+                        </div>
+                        <div class="pt-1 flex items-center justify-between gap-2">
+                            <button onclick="checkElevenlabsCredits()" class="w-full py-1.5 px-3 bg-purple-600/20 hover:bg-purple-600/40 text-purple-300 border border-purple-500/40 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5">
+                                <span>🔍 Kiểm Tra Số Dư Ký Tự</span>
+                            </button>
+                        </div>
+                        <div id="admin-ai-el-result" class="text-[11px] text-slate-400 bg-slate-900/60 p-2 rounded-lg border border-slate-800/80 hidden leading-relaxed"></div>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <span class="text-slate-400">Phí trừ Video MC:</span>
-                        <input type="number" id="admin-ai-cost-video" value="10" min="1" class="w-16 bg-slate-950 border border-slate-800 rounded-lg p-1.5 text-center text-white font-mono outline-none focus:border-purple-500">
-                        <span class="text-slate-500">Credits / Video</span>
+
+                    <!-- Nền tảng 2: HeyGen AI -->
+                    <div class="bg-slate-950/80 p-4 rounded-xl border border-slate-800 space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                                <span>🎭</span> HeyGen AI (Avatar MC)
+                            </span>
+                            <span id="admin-ai-hg-status" class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono font-bold">Chưa check</span>
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[11px] font-semibold text-slate-400">X-Api-Key:</label>
+                            <div class="relative">
+                                <input type="password" id="admin-ai-hg-key" placeholder="Nhập HeyGen API Key..." class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2.5 pr-9 text-xs text-white outline-none focus:border-purple-500 font-mono transition-all">
+                                <button type="button" onclick="toggleInputVisibility('admin-ai-hg-key')" class="absolute right-2.5 top-2.5 text-slate-400 hover:text-white text-xs">👁️</button>
+                            </div>
+                        </div>
+                        <div class="pt-1 flex items-center justify-between gap-2">
+                            <button onclick="checkHeygenCredits()" class="w-full py-1.5 px-3 bg-sky-600/20 hover:bg-sky-600/40 text-sky-300 border border-sky-500/40 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5">
+                                <span>🔍 Kiểm Tra Video Credits</span>
+                            </button>
+                        </div>
+                        <div id="admin-ai-hg-result" class="text-[11px] text-slate-400 bg-slate-900/60 p-2 rounded-lg border border-slate-800/80 hidden leading-relaxed"></div>
                     </div>
+
+                    <!-- Nền tảng 3: Supabase Cloud Database -->
+                    <div class="bg-slate-950/80 p-4 rounded-xl border border-slate-800 space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                                <span>⚡</span> Supabase Cloud (Khóa Auth)
+                            </span>
+                            <span id="admin-ai-supa-status" class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono font-bold">Chưa check</span>
+                        </div>
+                        <div class="space-y-1.5">
+                            <div>
+                                <label class="text-[10px] font-semibold text-slate-400">Project URL:</label>
+                                <input type="text" id="admin-ai-supa-url" placeholder="https://xxx.supabase.co" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 text-xs text-white outline-none focus:border-purple-500 font-mono transition-all">
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-semibold text-slate-400">Anon / Service Key:</label>
+                                <div class="relative">
+                                    <input type="password" id="admin-ai-supa-key" placeholder="eyJhbGciOiJI..." class="w-full bg-slate-900 border border-slate-800 rounded-lg p-1.5 pr-9 text-xs text-white outline-none focus:border-purple-500 font-mono transition-all">
+                                    <button type="button" onclick="toggleInputVisibility('admin-ai-supa-key')" class="absolute right-2.5 top-1.5 text-slate-400 hover:text-white text-xs">👁️</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="pt-1 flex items-center justify-between gap-2">
+                            <button onclick="checkSupabaseConnection()" class="w-full py-1.5 px-3 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 border border-emerald-500/40 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5">
+                                <span>🔍 Kiểm Tra Kết Nối Cloud</span>
+                            </button>
+                        </div>
+                        <div id="admin-ai-supa-result" class="text-[11px] text-slate-400 bg-slate-900/60 p-2 rounded-lg border border-slate-800/80 hidden leading-relaxed"></div>
+                    </div>
+                </div>
+
+                <!-- Thiết Lập Hạn Mức Tiêu Thụ Credits -->
+                <div class="p-3 bg-slate-950/50 rounded-xl border border-slate-800 flex flex-wrap items-center justify-between gap-4 text-xs">
+                    <div class="flex flex-wrap items-center gap-6">
+                        <div class="flex items-center gap-2">
+                            <span class="text-slate-400 font-semibold">Phí trừ Voice:</span>
+                            <input type="number" id="admin-ai-cost-voice" value="2" min="1" class="w-16 bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-center text-white font-mono outline-none focus:border-purple-500">
+                            <span class="text-slate-500">Credits / Lần</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-slate-400 font-semibold">Phí trừ Video MC:</span>
+                            <input type="number" id="admin-ai-cost-video" value="10" min="1" class="w-16 bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-center text-white font-mono outline-none focus:border-purple-500">
+                            <span class="text-slate-500">Credits / Video</span>
+                        </div>
+                    </div>
+                    <span class="text-[11px] text-purple-300 font-medium">💡 Gợi ý: 500 Credits = 50 Video MC hoặc 250 Giọng đọc</span>
                 </div>
             </div>
 
-            <!-- Bảng Quản Lý Khóa Phát Sóng (License Keys) -->
+            <!-- BẢNG QUẢN LÝ KHÓA PHÁT SÓNG & CẤP MÃ API CHO NGƯỜI DÙNG -->
             <div class="glass rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
-                <div class="p-4 border-b border-slate-800 flex justify-between items-center">
+                <div class="p-4 border-b border-slate-800 flex flex-wrap justify-between items-center gap-3">
                     <div>
                         <h4 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                            <span>🔑 Quản Lý Khóa Phát Sóng & Gói Dịch Vụ AI</span>
+                            <span>🔑 Quản Lý Khóa Bản Quyền & Cấp API Cho Người Dùng</span>
+                            <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono font-bold">SUPABASE CLOUD SYNCED</span>
                         </h4>
-                        <p class="text-[11px] text-slate-400">Cấp mã khóa cho từng kênh/shop, phân bổ luồng live, dung lượng ổ đĩa và nạp Credits làm video AI.</p>
+                        <p class="text-[11px] text-slate-400">Sinh mã theo cấu trúc chuẩn, tự động push lên Supabase Cloud Database, bật/tắt (toggle) trạng thái hoạt động tức thì trên Web App.</p>
                     </div>
-                    <button onclick="openNewKeyModal()" class="px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-600/30 transition-all flex items-center gap-1.5 cursor-pointer">
-                        <span>➕ Cấp Mã Khóa Mới</span>
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <button onclick="syncKeysFromSupabase()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer" title="Kéo và đồng bộ toàn bộ khóa từ Supabase Cloud">
+                            <span>🔄 Đồng Bộ Supabase Cloud</span>
+                        </button>
+                        <button onclick="openNewKeyModal()" class="px-3.5 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-600/30 transition-all flex items-center gap-1.5 cursor-pointer">
+                            <span>➕ Cấp Mã Khóa Mới</span>
+                        </button>
+                    </div>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse">
                         <thead>
                             <tr class="border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase bg-slate-950/60">
-                                <th class="py-3 px-4">Mã Khóa (Key)</th>
+                                <th class="py-3 px-4">Mã Khóa (API Key)</th>
                                 <th class="py-3 px-4">Tên Kênh / Shop</th>
                                 <th class="py-3 px-4">Số Luồng (Đang Live / Max)</th>
                                 <th class="py-3 px-4">Dung Lượng Lưu Trữ</th>
                                 <th class="py-3 px-4">AI Credits</th>
-                                <th class="py-3 px-4">Trạng Thái</th>
+                                <th class="py-3 px-4">Trạng Thái (Active/Revoked)</th>
                                 <th class="py-3 px-4 text-right">Thao Tác</th>
                             </tr>
                         </thead>
@@ -2798,26 +2871,59 @@
         </div>
     </div>
 
-    <!-- MODAL: CẤP MÃ KHÓA PHÁT SÓNG MỚI (LICENSE KEY) -->
+    <!-- MODAL: CẤP MÃ KHÓA PHÁT SÓNG MỚI (LICENSE KEY & SUPABASE CLOUD) -->
     <div id="modal-new-key" class="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-50 hidden p-4">
-        <div class="glass w-full max-w-md rounded-2xl p-6 border border-purple-500/40 shadow-2xl space-y-4">
+        <div class="glass w-full max-w-lg rounded-2xl p-6 border border-purple-500/40 shadow-2xl space-y-4">
             <div class="flex justify-between items-center pb-3 border-b border-slate-800">
-                <h3 class="text-sm font-black uppercase text-purple-400 flex items-center gap-2">
-                    <span>➕ Cấp Mã Khóa Phát Sóng Mới</span>
-                </h3>
+                <div>
+                    <h3 class="text-sm font-black uppercase text-purple-400 flex items-center gap-2">
+                        <span>➕ Cấp Mã Khóa Bản Quyền Mới Cho Khách Hàng</span>
+                    </h3>
+                    <p class="text-[11px] text-slate-400">Sinh mã theo cấu trúc chuẩn, tự động push lên Supabase Cloud Database và cấp cho người dùng.</p>
+                </div>
                 <button onclick="closeNewKeyModal()" class="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer">✕</button>
             </div>
 
             <div class="space-y-3.5 text-xs">
                 <div>
                     <label class="block font-semibold text-slate-300 mb-1">Tên Kênh / Shop sở hữu khóa: *</label>
-                    <input type="text" id="nk-name" placeholder="Ví dụ: Shop Thời Trang Bella" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500">
+                    <input type="text" id="nk-name" placeholder="Ví dụ: Shop Thời Trang Bella / Kênh TikTok 01" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500">
                 </div>
+
                 <div>
-                    <label class="block font-semibold text-slate-300 mb-1">Mã Khóa (Tùy chọn, để trống sẽ tự sinh mã):</label>
-                    <input type="text" id="nk-custom-key" placeholder="Ví dụ: HLC_SHOP_BELLA_VIP" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500 font-mono">
-                    <span class="text-[10px] text-slate-500">Mã này dùng để gửi cho người dùng nhập khi mở ứng dụng.</span>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="font-semibold text-slate-300">Mã API Key Được Cấp: *</label>
+                        <button type="button" onclick="generateNewKeyCode()" class="text-[11px] font-bold text-sky-400 hover:text-sky-300 transition-all flex items-center gap-1 cursor-pointer">
+                            <span>⚡ Sinh Mã Mẫu Mới</span>
+                        </button>
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" id="nk-key" placeholder="hlc-live-automation-xxxx-xxx-xxxxxx..." class="flex-1 bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-purple-300 outline-none focus:border-purple-500 font-mono text-xs select-all">
+                        <button type="button" onclick="generateNewKeyCode()" class="px-3 bg-purple-600/20 hover:bg-purple-600 text-purple-300 hover:text-white border border-purple-500/40 rounded-xl font-bold transition-all cursor-pointer" title="Sinh mã mới">
+                            ⚡
+                        </button>
+                    </div>
+                    <span class="text-[10px] text-slate-500 block mt-1">Cấu trúc mẫu: <code class="font-mono text-slate-400">hlc-live-automation-5381-903-294817-49501-33574-921475-88-10363827-5123-0</code></span>
                 </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block font-semibold text-slate-300 mb-1">Số dư AI Credits ban đầu:</label>
+                        <input type="number" id="nk-credits" value="500" min="0" step="50" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500 font-mono">
+                        <span class="text-[10px] text-slate-500">500 Credits ~ 50 Video MC AI</span>
+                    </div>
+                    <div>
+                        <label class="block font-semibold text-slate-300 mb-1">Thời hạn sử dụng:</label>
+                        <select id="nk-duration" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500 cursor-pointer">
+                            <option value="0">Vĩnh viễn (Không giới hạn)</option>
+                            <option value="30">30 Ngày (1 Tháng)</option>
+                            <option value="90">90 Ngày (3 Tháng)</option>
+                            <option value="180">180 Ngày (6 Tháng)</option>
+                            <option value="365">365 Ngày (1 Năm)</option>
+                        </select>
+                    </div>
+                </div>
+
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="block font-semibold text-slate-300 mb-1">Số luồng tối đa:</label>
@@ -2826,19 +2932,67 @@
                     <div>
                         <label class="block font-semibold text-slate-300 mb-1">Dung lượng ổ (MB):</label>
                         <input type="number" id="nk-disk" value="10240" min="500" step="1024" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500 font-mono">
-                        <span class="text-[10px] text-slate-500">10,240 MB = 10 GB</span>
                     </div>
                 </div>
-                <div>
-                    <label class="block font-semibold text-slate-300 mb-1">Số dư AI Credits ban đầu:</label>
-                    <input type="number" id="nk-credits" value="500" min="0" step="50" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500 font-mono">
-                    <span class="text-[10px] text-slate-500">500 Credits ~ 50 Video MC AI</span>
+
+                <div class="p-3 bg-purple-950/20 border border-purple-800/40 rounded-xl flex items-center gap-2.5">
+                    <input type="checkbox" id="nk-push-supabase" checked class="w-4 h-4 accent-purple-600 rounded cursor-pointer">
+                    <label for="nk-push-supabase" class="text-xs font-semibold text-purple-300 cursor-pointer">
+                        Đồng bộ và lưu trữ ngay lên Supabase Cloud Database (Bảng api_keys)
+                    </label>
                 </div>
             </div>
 
             <div class="pt-3 border-t border-slate-800 flex justify-end gap-2">
                 <button onclick="closeNewKeyModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-all cursor-pointer">Hủy</button>
-                <button onclick="submitCreateApiKey()" class="px-5 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-purple-600/30 uppercase tracking-wider transition-all cursor-pointer">Cấp Mã Khóa</button>
+                <button onclick="submitCreateApiKey()" class="px-5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-purple-600/30 uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5">
+                    <span>🚀 Cấp Khóa & Đẩy Lên Supabase</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: HIỂN THỊ MÃ KHÓA VỪA CẤP THÀNH CÔNG (SUCCESS POPUP) -->
+    <div id="modal-key-created-success" class="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-50 hidden p-4">
+        <div class="glass w-full max-w-md rounded-2xl p-6 border border-emerald-500/50 shadow-2xl space-y-4 text-center">
+            <div class="w-14 h-14 mx-auto rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-2xl">
+                🎉
+            </div>
+            <div>
+                <h3 class="text-base font-black uppercase text-emerald-400">Cấp Mã Khóa API Thành Công!</h3>
+                <p class="text-xs text-slate-400 mt-1">Khóa đã được đồng bộ lên Supabase Cloud và sẵn sàng cấp cho người dùng.</p>
+            </div>
+
+            <div class="bg-slate-950 p-4 rounded-xl border border-emerald-500/30 text-left space-y-2">
+                <div class="flex justify-between text-xs">
+                    <span class="text-slate-400">Khách Hàng / Shop:</span>
+                    <span id="created-key-name" class="font-bold text-white">--</span>
+                </div>
+                <div class="flex justify-between text-xs">
+                    <span class="text-slate-400">Hạn Mức AI Credits:</span>
+                    <span id="created-key-credits" class="font-bold text-purple-300">--</span>
+                </div>
+                <div class="flex justify-between text-xs">
+                    <span class="text-slate-400">Lưu Trữ Cloud:</span>
+                    <span class="font-bold text-emerald-400">🟢 Supabase Synced</span>
+                </div>
+
+                <div class="pt-2">
+                    <label class="block text-[11px] font-semibold text-slate-400 mb-1">Mã API Key Để Gửi Khách:</label>
+                    <div id="created-key-display" class="p-3 bg-slate-900 rounded-lg font-mono text-xs text-emerald-400 font-bold border border-slate-800 break-all select-all text-center">
+                        --
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex gap-2">
+                <button onclick="copyCreatedKey()" class="flex-1 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/30 transition-all cursor-pointer flex items-center justify-center gap-1.5">
+                    <span id="created-key-copy-icon">📋</span>
+                    <span id="created-key-copy-text">Sao Chép Mã Key Gửi Khách</span>
+                </button>
+                <button onclick="closeKeySuccessModal()" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-all cursor-pointer">
+                    Đóng
+                </button>
             </div>
         </div>
     </div>

@@ -171,13 +171,118 @@ class ContentStudioEngine:
             "heygen": self.settings.get("heygen_api_key") or os.getenv("HEYGEN_API_KEY", "")
         }
 
-    def set_api_keys(self, elevenlabs_key: Optional[str] = None, heygen_key: Optional[str] = None) -> bool:
+    def set_api_keys(self, elevenlabs_key: Optional[str] = None, heygen_key: Optional[str] = None, supabase_url: Optional[str] = None, supabase_anon_key: Optional[str] = None) -> bool:
         if elevenlabs_key is not None:
             self.settings["elevenlabs_api_key"] = elevenlabs_key.strip()
         if heygen_key is not None:
             self.settings["heygen_api_key"] = heygen_key.strip()
+        if supabase_url is not None:
+            self.settings["supabase_url"] = supabase_url.strip()
+        if supabase_anon_key is not None:
+            self.settings["supabase_anon_key"] = supabase_anon_key.strip()
         self.save_settings()
         return True
+
+    def check_elevenlabs_balance(self, api_key: Optional[str] = None) -> Dict[str, Any]:
+        """Kiểm tra hạn mức và số dư ký tự tài khoản ElevenLabs"""
+        key = (api_key or self.settings.get("elevenlabs_api_key") or os.getenv("ELEVENLABS_API_KEY", "")).strip()
+        if not key:
+            return {"success": False, "message": "Chưa cấu hình ElevenLabs API Key"}
+        try:
+            r = requests.get(
+                "https://api.elevenlabs.io/v1/user/subscription",
+                headers={"xi-api-key": key},
+                timeout=8
+            )
+            if r.status_code == 200:
+                data = r.json()
+                limit = data.get("character_limit", 0)
+                used = data.get("character_count", 0)
+                remaining = max(0, limit - used)
+                tier = data.get("tier", "Unknown")
+                status = data.get("status", "active")
+                reset_unix = data.get("next_character_count_reset_unix")
+                reset_date = time.strftime("%d/%m/%Y", time.localtime(reset_unix)) if reset_unix else "N/A"
+                return {
+                    "success": True,
+                    "platform": "ElevenLabs",
+                    "tier": tier,
+                    "status": status,
+                    "character_limit": limit,
+                    "character_count": used,
+                    "remaining_characters": remaining,
+                    "reset_date": reset_date,
+                    "message": f"Gói: {tier.upper()} | Còn lại: {remaining:,} / {limit:,} ký tự (Reset: {reset_date})"
+                }
+            else:
+                msg = "Key không hợp lệ hoặc đã hết hạn"
+                try:
+                    msg = r.json().get("detail", {}).get("message", msg)
+                except Exception:
+                    pass
+                return {"success": False, "message": f"ElevenLabs ({r.status_code}): {msg}"}
+        except Exception as e:
+            return {"success": False, "message": f"Lỗi kết nối ElevenLabs: {str(e)}"}
+
+    def check_heygen_balance(self, api_key: Optional[str] = None) -> Dict[str, Any]:
+        """Kiểm tra hạn mức Credits khả dụng tài khoản HeyGen"""
+        key = (api_key or self.settings.get("heygen_api_key") or os.getenv("HEYGEN_API_KEY", "")).strip()
+        if not key:
+            return {"success": False, "message": "Chưa cấu hình HeyGen API Key"}
+        try:
+            r = requests.get(
+                "https://api.heygen.com/v2/user/remaining_quota",
+                headers={"X-Api-Key": key},
+                timeout=8
+            )
+            if r.status_code == 200:
+                data = r.json().get("data", {})
+                quota = data.get("quota", 0) if isinstance(data, dict) else 0
+                return {
+                    "success": True,
+                    "platform": "HeyGen",
+                    "remaining_quota": quota,
+                    "message": f"Số dư khả dụng: {quota} Credits HeyGen"
+                }
+            else:
+                msg = "Key không hợp lệ hoặc đã hết hạn"
+                try:
+                    msg = r.json().get("error", {}).get("message", msg)
+                except Exception:
+                    pass
+                return {"success": False, "message": f"HeyGen ({r.status_code}): {msg}"}
+        except Exception as e:
+            return {"success": False, "message": f"Lỗi kết nối HeyGen: {str(e)}"}
+
+    def check_supabase_connection(self, url: Optional[str] = None, anon_key: Optional[str] = None) -> Dict[str, Any]:
+        """Kiểm tra kết nối và số lượng key trên Supabase Cloud Database"""
+        from config import SUPABASE_URL, SUPABASE_ANON_KEY
+        target_url = (url or self.settings.get("supabase_url") or SUPABASE_URL).strip().rstrip('/')
+        target_key = (anon_key or self.settings.get("supabase_anon_key") or SUPABASE_ANON_KEY).strip()
+        if not target_url or not target_key:
+            return {"success": False, "message": "Chưa cấu hình Supabase URL hoặc Anon Key"}
+        try:
+            headers = {
+                "apikey": target_key,
+                "Authorization": f"Bearer {target_key}"
+            }
+            r = requests.get(f"{target_url}/rest/v1/api_keys?select=id,status,quota_remaining", headers=headers, timeout=8)
+            if r.status_code == 200:
+                keys = r.json()
+                active_count = sum(1 for k in keys if k.get("status") == "active")
+                total_quota = sum(k.get("quota_remaining", 0) for k in keys)
+                return {
+                    "success": True,
+                    "platform": "Supabase Cloud",
+                    "total_keys": len(keys),
+                    "active_keys": active_count,
+                    "total_quota": total_quota,
+                    "message": f"Kết nối Cloud OK | {len(keys)} Keys ({active_count} Active) | Tổng Quota: {total_quota:,}"
+                }
+            else:
+                return {"success": False, "message": f"Supabase ({r.status_code}): {r.text}"}
+        except Exception as e:
+            return {"success": False, "message": f"Lỗi kết nối Supabase Cloud: {str(e)}"}
 
     def get_voices(self) -> List[Dict[str, Any]]:
         keys = self.get_api_keys()
