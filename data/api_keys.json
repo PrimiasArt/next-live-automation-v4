@@ -6,7 +6,7 @@
     "role": "client",
     "max_streams": 2,
     "disk_quota_mb": 10240,
-    "quota_remaining": 600,
+    "quota_remaining": 590,
     "status": "active",
     "created_at": "2026-10-12 11:38:00"
   },
@@ -17,7 +17,7 @@
     "role": "client",
     "max_streams": 2,
     "disk_quota_mb": 10240,
-    "quota_remaining": 993964,
+    "quota_remaining": 993883,
     "status": "active",
     "created_at": "2026-10-12 11:41:08",
     "synced_supabase": true
@@ -31,7 +31,7 @@
     "disk_quota_mb": 102400,
     "quota_remaining": 999999,
     "status": "active",
-    "created_at": "2026-10-15 14:44:03"
+    "created_at": "2026-10-16 10:47:06"
   },
   "HLC_HXBL_8BD31A33": {
     "key": "HLC_HXBL_8BD31A33",
@@ -77,7 +77,7 @@
     "role": "client",
     "max_streams": 2,
     "disk_quota_mb": 10240,
-    "quota_remaining": 971495,
+    "quota_remaining": 971395,
     "status": "active",
     "created_at": "2026-06-22T04:01:02+00:00",
     "key_hash": "cc79c993d7cb93021ac8d392614bed2dd3afe9234bf8eac074af9afe8e927b57",
@@ -120,6 +120,19 @@
     "status": "active",
     "created_at": "2026-05-14T07:38:49+00:00",
     "key_hash": "2e08ece0d2dc06c78add128f82457c4d4aa187d12b522e019d3f2ae028f9ce13",
+    "synced_supabase": true
+  },
+  "SUPA_049e6ae2": {
+    "key": "SUPA_049e6ae2",
+    "id": "049e6ae2-7950-4c85-a707-02c456c21a74",
+    "name": "Shop Test Automation Suite",
+    "role": "client",
+    "max_streams": 2,
+    "disk_quota_mb": 10240,
+    "quota_remaining": 800,
+    "status": "active",
+    "created_at": "2026-10-15T14:44:19+00:00",
+    "key_hash": "022493c35a67a6c946dce01b9488f039fb095d06a9d8b7001f89ab3f38a4a03f",
     "synced_supabase": true
   }
 }

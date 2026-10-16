@@ -19,6 +19,9 @@ except Exception:
 from core.state import state
 
 AI_SETTINGS_FILE = os.path.join(DATA_DIR, "ai_settings.json")
+SYSTEM_AVATARS_FILE = os.path.join(DATA_DIR, "system_avatars.json")
+USER_AVATARS_FILE = os.path.join(DATA_DIR, "user_avatars.json")
+SYSTEM_AVATARS_DIR = os.path.join(STORAGE_DIR, "system_avatars")
 
 # Danh sách Giọng đọc tuyển chọn (Curated Voices với hỗ trợ Tiếng Việt & Đa ngữ đỉnh cao)
 CURATED_VOICES = [
@@ -126,13 +129,69 @@ class ContentStudioEngine:
             "elevenlabs_api_key": ELEVENLABS_API_KEY,
             "heygen_api_key": HEYGEN_API_KEY,
             "cost_per_voice_gen": 2,      # 2 Credits cho 1 lần tạo voice
-            "cost_per_video_gen": 10      # 10 Credits cho 1 video MC ảo
+            "cost_per_video_gen": 10,     # 10 Credits cho 1 video MC ảo
+            "max_user_custom_avatars": 3  # Giới hạn số lượng mẫu người dùng tự tải lên (Admin cấu hình)
         }
+        self.system_avatars_dir = SYSTEM_AVATARS_DIR
+        os.makedirs(self.system_avatars_dir, exist_ok=True)
+        self.system_avatars: List[Dict[str, Any]] = []
+        self.user_avatars: Dict[str, List[Dict[str, Any]]] = {}
         self.tasks_file = os.path.join(DATA_DIR, "content_studio_tasks.json")
         self.tasks: Dict[str, Dict[str, Any]] = {}
         self.lock = threading.Lock()
         self.load_settings()
         self.load_tasks()
+        self.load_avatars()
+
+    def load_avatars(self):
+        # 1. Nạp System Avatars (Mẫu hệ thống có sẵn dùng chung)
+        if os.path.exists(SYSTEM_AVATARS_FILE):
+            try:
+                with open(SYSTEM_AVATARS_FILE, 'r', encoding='utf-8') as f:
+                    self.system_avatars = json.load(f)
+            except Exception as e:
+                print(f"Lỗi nạp system_avatars.json: {e}")
+                self.system_avatars = []
+        else:
+            # Khởi tạo mặc định từ CURATED_AVATARS
+            self.system_avatars = [
+                {
+                    "id": a["id"],
+                    "name": a["name"],
+                    "gender": a.get("gender", "female"),
+                    "preview_img": a.get("preview_img"),
+                    "style": a.get("style", "MC Bán Hàng"),
+                    "is_system": True,
+                    "created_at": "2026-01-01 00:00:00"
+                }
+                for a in CURATED_AVATARS
+            ]
+            self.save_system_avatars()
+
+        # 2. Nạp User Custom Avatars (Mẫu riêng tư của từng khách hàng)
+        if os.path.exists(USER_AVATARS_FILE):
+            try:
+                with open(USER_AVATARS_FILE, 'r', encoding='utf-8') as f:
+                    self.user_avatars = json.load(f)
+            except Exception as e:
+                print(f"Lỗi nạp user_avatars.json: {e}")
+                self.user_avatars = {}
+        else:
+            self.user_avatars = {}
+
+    def save_system_avatars(self):
+        try:
+            with open(SYSTEM_AVATARS_FILE, 'w', encoding='utf-8') as f:
+                json.dump(self.system_avatars, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Lỗi lưu system_avatars.json: {e}")
+
+    def save_user_avatars(self):
+        try:
+            with open(USER_AVATARS_FILE, 'w', encoding='utf-8') as f:
+                json.dump(self.user_avatars, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Lỗi lưu user_avatars.json: {e}")
 
     def load_settings(self):
         if os.path.exists(AI_SETTINGS_FILE):
@@ -285,73 +344,242 @@ class ContentStudioEngine:
             return {"success": False, "message": f"Lỗi kết nối Supabase Cloud: {str(e)}"}
 
     def get_voices(self) -> List[Dict[str, Any]]:
+        """Lấy toàn bộ danh sách giọng đọc từ ElevenLabs API: cả giọng premade và giọng custom/cloned của tài khoản"""
         keys = self.get_api_keys()
         el_key = keys.get("elevenlabs")
         
-        # Nếu có API Key thật, thử fetch danh sách voice từ tài khoản
+        # Nếu có API Key thật, fetch toàn bộ giọng từ tài khoản ElevenLabs
         if el_key:
             try:
                 res = requests.get(
                     "https://api.elevenlabs.io/v1/voices",
                     headers={"xi-api-key": el_key},
-                    timeout=6
+                    timeout=8
                 )
                 if res.status_code == 200:
                     api_voices = res.json().get("voices", [])
-                    result = []
-                    # Ưu tiên curated voices trước
-                    known_ids = {v["id"] for v in CURATED_VOICES}
-                    result.extend(CURATED_VOICES)
+                    custom_voices = []
+                    premade_voices = []
+                    
+                    curated_map = {v["id"]: v for v in CURATED_VOICES}
+                    
                     for v in api_voices:
-                        if v.get("voice_id") not in known_ids:
-                            result.append({
-                                "id": v.get("voice_id"),
+                        vid = v.get("voice_id")
+                        category = (v.get("category") or "premade").lower()
+                        # Nhận diện giọng custom / cloned của tài khoản
+                        is_custom = category in ["cloned", "generated", "professional", "custom"] or (category != "premade")
+                        
+                        labels = v.get("labels") or {}
+                        gender = labels.get("gender") or "female"
+                        accent = labels.get("accent") or labels.get("language") or ("Tiếng Việt / Đa ngữ" if is_custom else "Đa ngữ")
+                        desc = labels.get("description") or labels.get("use case") or v.get("description") or ("Giọng Custom độc quyền" if is_custom else "Giọng đọc AI")
+                        
+                        if vid in curated_map:
+                            v_item = dict(curated_map[vid])
+                            v_item["preview_url"] = v.get("preview_url") or v_item.get("preview_url")
+                            v_item["is_custom"] = is_custom
+                            v_item["category"] = category
+                        else:
+                            v_item = {
+                                "id": vid,
                                 "name": v.get("name"),
-                                "language": v.get("category", "Custom / Multi"),
-                                "gender": v.get("labels", {}).get("gender", "neutral"),
-                                "style": v.get("labels", {}).get("description", "Giọng đọc AI"),
+                                "category": category,
+                                "is_custom": is_custom,
+                                "language": accent,
+                                "gender": gender,
+                                "style": desc,
                                 "preview_url": v.get("preview_url")
-                            })
+                            }
+                            
+                        if is_custom:
+                            custom_voices.append(v_item)
+                        else:
+                            premade_voices.append(v_item)
+                    
+                    # Sắp xếp: Giọng Custom lên đầu tiên, kế tiếp là các giọng Curated & Premade
+                    known_ids = {v["id"] for v in custom_voices} | {v["id"] for v in premade_voices}
+                    fallback_curated = [{**v, "is_custom": False, "category": "curated"} for v in CURATED_VOICES if v["id"] not in known_ids]
+                    
+                    result = custom_voices + fallback_curated + premade_voices
                     return result
             except Exception as e:
                 print(f"ElevenLabs fetch voices error, fallback to curated: {e}")
 
-        return CURATED_VOICES
+        # Fallback danh sách Curated
+        return [{**v, "is_custom": False, "category": "curated"} for v in CURATED_VOICES]
 
     def get_avatars(self) -> List[Dict[str, Any]]:
-        keys = self.get_api_keys()
-        hg_key = keys.get("heygen")
+        """Lấy danh sách người mẫu mặc định (tương thích backward)"""
+        return self.system_avatars
 
-        # Nếu có HeyGen API Key thật, thử fetch danh sách avatar từ tài khoản
-        if hg_key:
-            try:
-                res = requests.get(
-                    "https://api.heygen.com/v2/avatars",
-                    headers={"X-Api-Key": hg_key},
-                    timeout=6
-                )
-                if res.status_code == 200:
-                    data = res.json().get("data", {})
-                    avatars = data.get("avatars", [])
-                    if avatars:
-                        result = []
-                        known_ids = {a["id"] for a in CURATED_AVATARS}
-                        result.extend(CURATED_AVATARS)
-                        for a in avatars[:15]:
-                            aid = a.get("avatar_id")
-                            if aid not in known_ids:
-                                result.append({
-                                    "id": aid,
-                                    "name": a.get("avatar_name", aid),
-                                    "gender": a.get("gender", "unknown"),
-                                    "preview_img": a.get("preview_image_url") or a.get("preview_video_url"),
-                                    "style": "HeyGen Avatar"
-                                })
-                        return result
-            except Exception as e:
-                print(f"HeyGen fetch avatars error, fallback to curated: {e}")
+    def get_avatars_for_user(self, user_id: str, is_admin: bool = False) -> Dict[str, Any]:
+        """Lấy danh sách người mẫu: Mẫu hệ thống + Mẫu riêng của User cùng thông tin hạn mức (Quota)"""
+        with self.lock:
+            user_list = list(self.user_avatars.get(user_id, []))
+            system_list = list(self.system_avatars)
+            
+            # Quota info
+            max_custom = 999999 if is_admin else self.settings.get("max_user_custom_avatars", 3)
+            used = len(user_list)
+            remaining = max(0, max_custom - used)
+            can_upload = is_admin or (used < max_custom)
 
-        return CURATED_AVATARS
+            # Combined list: user's custom models first, then system models
+            combined = user_list + system_list
+
+            return {
+                "success": True,
+                "avatars": combined,
+                "user_avatars": user_list,
+                "system_avatars": system_list,
+                "quota": {
+                    "used": used,
+                    "max": max_custom,
+                    "remaining": remaining,
+                    "can_upload": can_upload,
+                    "is_admin": is_admin
+                }
+            }
+
+    def save_avatar_upload(self, file_storage, name: str, gender: str, style: str, user_id: str, is_admin: bool = False, is_system: bool = False) -> Dict[str, Any]:
+        """Tải lên hình ảnh người mẫu mới (Hệ thống hoặc Riêng tư của User có kiểm tra Quota)"""
+        if is_system and not is_admin:
+            is_system = False
+
+        # Kiểm tra quota đối với khách hàng thông thường
+        with self.lock:
+            if not is_system and not is_admin:
+                current_count = len(self.user_avatars.get(user_id, []))
+                max_allowed = self.settings.get("max_user_custom_avatars", 3)
+                if current_count >= max_allowed:
+                    return {
+                        "success": False,
+                        "message": f"Bạn đã đạt giới hạn tối đa {max_allowed} người mẫu tải lên. Vui lòng xóa bớt người mẫu cũ hoặc liên hệ Admin để nâng cấp hạn mức!"
+                    }
+
+        # Kiểm tra file hợp lệ
+        if not file_storage or not getattr(file_storage, "filename", None):
+            return {"success": False, "message": "Chưa chọn file hình ảnh người mẫu!"}
+
+        ext = os.path.splitext(file_storage.filename)[1].lower()
+        if ext not in [".png", ".jpg", ".jpeg", ".webp"]:
+            return {"success": False, "message": "Định dạng file không hỗ trợ! Vui lòng tải file ảnh PNG, JPG hoặc WEBP."}
+
+        # Tạo ID và đường dẫn lưu trữ
+        unique_id = uuid.uuid4().hex[:10]
+        if is_system:
+            avatar_id = f"sys_av_{unique_id}"
+            target_dir = self.system_avatars_dir
+            preview_url = f"/api/content-studio/avatars/image/{avatar_id}{ext}"
+        else:
+            avatar_id = f"usr_av_{unique_id}"
+            target_dir = os.path.join(STORAGE_DIR, "users", user_id, "avatars")
+            preview_url = f"/api/content-studio/avatars/user-image/{user_id}/{avatar_id}{ext}"
+
+        os.makedirs(target_dir, exist_ok=True)
+        file_path = os.path.join(target_dir, f"{avatar_id}{ext}")
+
+        try:
+            file_storage.save(file_path)
+        except Exception as e:
+            return {"success": False, "message": f"Lỗi lưu file ảnh: {str(e)}"}
+
+        avatar_record = {
+            "id": avatar_id,
+            "name": name.strip() or ("Mẫu Hệ Thống" if is_system else "Mẫu Tự Tải"),
+            "gender": gender if gender in ["female", "male"] else "female",
+            "style": style.strip() or ("Người mẫu hệ thống có sẵn" if is_system else "Người mẫu ảnh tự tải lên"),
+            "preview_img": preview_url,
+            "local_file": file_path,
+            "is_system": is_system,
+            "user_id": "system" if is_system else user_id,
+            "created_at": time.strftime("%Y-%m-%d %H:%M:%S")
+        }
+
+        with self.lock:
+            if is_system:
+                self.system_avatars.insert(0, avatar_record)
+                self.save_system_avatars()
+            else:
+                if user_id not in self.user_avatars:
+                    self.user_avatars[user_id] = []
+                self.user_avatars[user_id].insert(0, avatar_record)
+                self.save_user_avatars()
+
+        state.add_log("STUDIO", f"📸 [CONTENT-STUDIO] Đã lưu mẫu mới: {avatar_record['name']} (ID: {avatar_id}, System: {is_system})")
+
+        return {
+            "success": True,
+            "message": "Tải lên hình ảnh người mẫu thành công!",
+            "avatar": avatar_record
+        }
+
+    def delete_avatar(self, avatar_id: str, user_id: str, is_admin: bool = False) -> Dict[str, Any]:
+        """Xóa người mẫu (giải phóng quota cho user hoặc admin xóa system avatar)"""
+        with self.lock:
+            # 1. Kiểm tra trong System Avatars
+            for idx, a in enumerate(self.system_avatars):
+                if a.get("id") == avatar_id:
+                    if not is_admin:
+                        return {"success": False, "message": "Chỉ Quản trị viên mới có quyền xóa người mẫu hệ thống!"}
+                    
+                    local_file = a.get("local_file")
+                    if local_file and os.path.exists(local_file):
+                        try:
+                            os.remove(local_file)
+                        except Exception:
+                            pass
+                    self.system_avatars.pop(idx)
+                    self.save_system_avatars()
+                    state.add_log("STUDIO", f"🗑️ [CONTENT-STUDIO] Admin đã xóa mẫu hệ thống: {avatar_id}")
+                    return {"success": True, "message": "Đã xóa người mẫu hệ thống thành công!"}
+
+            # 2. Kiểm tra trong User Avatars của user hiện tại
+            user_list = self.user_avatars.get(user_id, [])
+            for idx, a in enumerate(user_list):
+                if a.get("id") == avatar_id:
+                    local_file = a.get("local_file")
+                    if local_file and os.path.exists(local_file):
+                        try:
+                            os.remove(local_file)
+                        except Exception:
+                            pass
+                    user_list.pop(idx)
+                    self.save_user_avatars()
+                    state.add_log("STUDIO", f"🗑️ [CONTENT-STUDIO] Người dùng {user_id} đã xóa mẫu: {avatar_id}")
+                    return {"success": True, "message": "Đã xóa người mẫu thành công! Đã giải phóng 1 vị trí tải lên."}
+
+            # 3. Nếu là Admin, kiểm tra trong tất cả các users
+            if is_admin:
+                for uid, ulist in self.user_avatars.items():
+                    for idx, a in enumerate(ulist):
+                        if a.get("id") == avatar_id:
+                            local_file = a.get("local_file")
+                            if local_file and os.path.exists(local_file):
+                                try:
+                                    os.remove(local_file)
+                                except Exception:
+                                    pass
+                            ulist.pop(idx)
+                            self.save_user_avatars()
+                            return {"success": True, "message": f"Admin đã xóa mẫu {avatar_id} của người dùng {uid}!"}
+
+        return {"success": False, "message": "Không tìm thấy người mẫu cần xóa!"}
+
+    def get_avatar_by_id(self, avatar_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        with self.lock:
+            for a in self.system_avatars:
+                if a.get("id") == avatar_id:
+                    return a
+            if user_id and user_id in self.user_avatars:
+                for a in self.user_avatars[user_id]:
+                    if a.get("id") == avatar_id:
+                        return a
+            for ulist in self.user_avatars.values():
+                for a in ulist:
+                    if a.get("id") == avatar_id:
+                        return a
+            return None
 
     def create_video_task(self, user_id: str, title: str, script: str, voice_id: str, avatar_id: str, aspect_ratio: str = "9:16") -> Dict[str, Any]:
         task_id = f"cs_{uuid.uuid4().hex[:10]}"
@@ -579,8 +807,16 @@ class ContentStudioEngine:
                 })
                 # Giả lập thời gian render để trải nghiệm chân thực
                 time.sleep(2)
-                # Dùng FFmpeg tạo 1 video mp4 demo với đồ họa Studio phát sóng
-                self._generate_studio_placeholder_video(final_video_path, task["title"], script, aspect_ratio)
+                # Dùng FFmpeg tạo 1 video mp4 demo với đồ họa Studio và ảnh người mẫu MC đã chọn
+                self._generate_studio_placeholder_video(
+                    output_path=final_video_path,
+                    title=task["title"],
+                    script=script,
+                    aspect_ratio=aspect_ratio,
+                    avatar_id=avatar_id,
+                    user_id=user_id,
+                    audio_path=audio_path if has_real_audio else None
+                )
 
             # -------------------------------------------------------------
             # HOÀN TẤT TÁC VỤ
@@ -605,8 +841,8 @@ class ContentStudioEngine:
                 "error": str(e)
             })
 
-    def _generate_studio_placeholder_video(self, output_path: str, title: str, script: str, aspect_ratio: str = "9:16"):
-        """Tạo video demo chuyên nghiệp bằng FFmpeg tích hợp sẵn trong hệ thống nếu chưa có key thật"""
+    def _generate_studio_placeholder_video(self, output_path: str, title: str, script: str, aspect_ratio: str = "9:16", avatar_id: Optional[str] = None, user_id: Optional[str] = None, audio_path: Optional[str] = None):
+        """Tạo video studio chuyên nghiệp với MC AI / Người Mẫu bằng FFmpeg"""
         bin_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bin")
         ffmpeg_bin = os.path.join(bin_dir, "ffmpeg.exe") if os.name == 'nt' else "ffmpeg"
         if not os.path.exists(ffmpeg_bin):
@@ -615,25 +851,61 @@ class ContentStudioEngine:
         width, height = (1080, 1920) if aspect_ratio == "9:16" else (1920, 1080)
         duration = 10 # 10 giây demo
 
-        # Lọc chữ kịch bản ngắn gọn
-        short_script = (script[:80] + "...") if len(script) > 80 else script
-        short_script = short_script.replace(":", " ").replace("'", "").replace('"', "")
+        # Tìm ảnh avatar nếu có
+        avatar_img_path = None
+        if avatar_id:
+            av_info = self.get_avatar_by_id(avatar_id, user_id=user_id)
+            if av_info:
+                local_f = av_info.get("local_file")
+                if local_f and os.path.exists(local_f):
+                    avatar_img_path = local_f
 
-        cmd = [
-            ffmpeg_bin, "-y",
-            "-f", "lavfi", "-i", f"color=c=0x080c14:s={width}x{height}:d={duration}:r=30",
-            "-f", "lavfi", "-i", f"sine=frequency=440:duration={duration}",
-            "-vf", f"drawbox=y=ih-300:color=0x0ea5e9@0.3:width=iw:height=200:t=fill",
-            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
-            "-c:a", "aac", "-b:a", "128k",
-            output_path
-        ]
+        has_real_audio = audio_path and os.path.exists(audio_path)
 
         try:
             import subprocess
+            if avatar_img_path and os.path.exists(avatar_img_path):
+                # Scale avatar chiếm ~72% chiều cao khung hình và đặt ở vị trí trung tâm
+                target_h = int(height * 0.72)
+                cmd = [
+                    ffmpeg_bin, "-y",
+                    "-f", "lavfi", "-i", f"color=c=0x080c14:s={width}x{height}:d={duration}:r=30",
+                    "-loop", "1", "-i", avatar_img_path
+                ]
+                if has_real_audio:
+                    cmd.extend(["-i", audio_path])
+                else:
+                    cmd.extend(["-f", "lavfi", "-i", f"anullsrc=channel_layout=stereo:sample_rate=44100:d={duration}"])
+
+                cmd.extend([
+                    "-filter_complex", f"[1:v]scale=-1:{target_h}[scaled];[0:v][scaled]overlay=(W-w)/2:(H-h)/2:shortest=1[v]",
+                    "-map", "[v]",
+                    "-map", "2:a",
+                    "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+                    "-c:a", "aac", "-b:a", "128k",
+                    "-shortest",
+                    output_path
+                ])
+            else:
+                cmd = [
+                    ffmpeg_bin, "-y",
+                    "-f", "lavfi", "-i", f"color=c=0x080c14:s={width}x{height}:d={duration}:r=30"
+                ]
+                if has_real_audio:
+                    cmd.extend(["-i", audio_path])
+                else:
+                    cmd.extend(["-f", "lavfi", "-i", f"sine=frequency=440:duration={duration}"])
+
+                cmd.extend([
+                    "-vf", "drawbox=y=ih-300:color=0x0ea5e9@0.3:width=iw:height=200:t=fill",
+                    "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+                    "-c:a", "aac", "-b:a", "128k",
+                    "-shortest",
+                    output_path
+                ])
+
             subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-        except Exception:
-            # Nếu ffmpeg lỗi font drawtext, tạo video đơn giản không text
+        except Exception as e:
             fallback_cmd = [
                 ffmpeg_bin, "-y",
                 "-f", "lavfi", "-i", f"color=c=0x0b0f19:s={width}x{height}:d={duration}:r=30",
@@ -643,6 +915,7 @@ class ContentStudioEngine:
                 output_path
             ]
             try:
+                import subprocess
                 subprocess.run(fallback_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
             except Exception as e:
                 print(f"Không thể tạo video placeholder: {e}")

@@ -115,7 +115,8 @@ def platform_config(admin_user):
             "supabase_url": supa_url,
             "supabase_anon_masked": mask(supa_key),
             "cost_per_voice": content_studio_engine.settings.get("cost_per_voice_gen", 2),
-            "cost_per_video": content_studio_engine.settings.get("cost_per_video_gen", 10)
+            "cost_per_video": content_studio_engine.settings.get("cost_per_video_gen", 10),
+            "max_user_custom_avatars": content_studio_engine.settings.get("max_user_custom_avatars", 3)
         })
 
     data = request.json or {}
@@ -135,6 +136,8 @@ def platform_config(admin_user):
         content_studio_engine.settings["cost_per_video_gen"] = max(1, int(data["cost_per_video"]))
     if "cost_per_voice" in data:
         content_studio_engine.settings["cost_per_voice_gen"] = max(1, int(data["cost_per_voice"]))
+    if "max_user_custom_avatars" in data:
+        content_studio_engine.settings["max_user_custom_avatars"] = max(1, int(data["max_user_custom_avatars"]))
     content_studio_engine.save_settings()
 
     return jsonify({"success": True, "message": "Đã lưu cấu hình API các nền tảng thành công!"})

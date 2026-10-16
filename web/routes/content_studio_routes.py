@@ -1,4 +1,5 @@
-from flask import Blueprint, request, jsonify
+import os
+from flask import Blueprint, request, jsonify, send_from_directory
 from web.routes.auth_routes import login_required, admin_required
 from core.api_key_manager import api_key_manager
 from core.content_studio_engine import content_studio_engine
@@ -14,8 +15,52 @@ def get_voices(user):
 @content_studio_bp.route('/api/content-studio/avatars', methods=['GET'])
 @login_required
 def get_avatars(user):
-    avatars = content_studio_engine.get_avatars()
-    return jsonify({"success": True, "avatars": avatars})
+    user_id = user.get("id") or user.get("key")
+    is_admin = (user.get("role") == "admin")
+    res = content_studio_engine.get_avatars_for_user(user_id, is_admin=is_admin)
+    return jsonify(res)
+
+@content_studio_bp.route('/api/content-studio/avatars/upload', methods=['POST'])
+@login_required
+def upload_avatar(user):
+    file = request.files.get("file")
+    name = request.form.get("name", "").strip()
+    gender = request.form.get("gender", "female").strip().lower()
+    style = request.form.get("style", "").strip()
+    is_system = request.form.get("is_system", "false").lower() in ["true", "1"]
+    is_admin = (user.get("role") == "admin")
+    user_id = user.get("id") or user.get("key")
+
+    res = content_studio_engine.save_avatar_upload(
+        file_storage=file,
+        name=name,
+        gender=gender,
+        style=style,
+        user_id=user_id,
+        is_admin=is_admin,
+        is_system=is_system
+    )
+    status_code = 200 if res.get("success") else 400
+    return jsonify(res), status_code
+
+@content_studio_bp.route('/api/content-studio/avatars/<avatar_id>', methods=['DELETE'])
+@login_required
+def delete_avatar_route(user, avatar_id):
+    is_admin = (user.get("role") == "admin")
+    user_id = user.get("id") or user.get("key")
+    res = content_studio_engine.delete_avatar(avatar_id, user_id=user_id, is_admin=is_admin)
+    status_code = 200 if res.get("success") else 400
+    return jsonify(res), status_code
+
+@content_studio_bp.route('/api/content-studio/avatars/image/<path:filename>', methods=['GET'])
+def serve_system_avatar_image(filename):
+    return send_from_directory(content_studio_engine.system_avatars_dir, filename)
+
+@content_studio_bp.route('/api/content-studio/avatars/user-image/<user_id>/<path:filename>', methods=['GET'])
+def serve_user_avatar_image(user_id, filename):
+    from config import STORAGE_DIR
+    user_av_dir = os.path.join(STORAGE_DIR, "users", user_id, "avatars")
+    return send_from_directory(user_av_dir, filename)
 
 @content_studio_bp.route('/api/content-studio/credits', methods=['GET'])
 @login_required
@@ -140,7 +185,8 @@ def admin_ai_config(user):
             "elevenlabs_masked": mask(keys.get("elevenlabs")),
             "heygen_masked": mask(keys.get("heygen")),
             "cost_per_voice": content_studio_engine.settings.get("cost_per_voice_gen", 2),
-            "cost_per_video": content_studio_engine.settings.get("cost_per_video_gen", 10)
+            "cost_per_video": content_studio_engine.settings.get("cost_per_video_gen", 10),
+            "max_user_custom_avatars": content_studio_engine.settings.get("max_user_custom_avatars", 3)
         })
 
     data = request.json or {}
@@ -153,6 +199,8 @@ def admin_ai_config(user):
         content_studio_engine.settings["cost_per_video_gen"] = max(1, int(data["cost_per_video"]))
     if "cost_per_voice" in data:
         content_studio_engine.settings["cost_per_voice_gen"] = max(1, int(data["cost_per_voice"]))
+    if "max_user_custom_avatars" in data:
+        content_studio_engine.settings["max_user_custom_avatars"] = max(1, int(data["max_user_custom_avatars"]))
     content_studio_engine.save_settings()
 
     return jsonify({"success": True, "message": "Đã cập nhật cấu hình Content Studio AI thành công!"})

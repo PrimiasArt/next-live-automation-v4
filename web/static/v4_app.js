@@ -1117,6 +1117,16 @@ let csVoicesList = [];
 let csAvatarsList = [];
 let csSelectedVoiceId = '21m00Tcm4TlvDq8ikWAM';
 let csSelectedAvatarId = 'Daisy-inskirt-20220818';
+let csVoicesList = [];
+let csVoiceFilter = 'all';
+let csVoiceSearchQuery = '';
+let csSelectedVoiceId = '21m00Tcm4TlvDq8ikWAM';
+
+let csAvatarsData = { avatars: [], system_avatars: [], user_avatars: [], quota: { used: 0, max: 3, can_upload: true } };
+let csSelectedAvatarId = 'Daisy-inskirt-20220818';
+let csAvatarFilter = 'all';
+let csUploadIsSystem = false;
+
 let csActivePollInterval = null;
 let csAudioPreviewObj = null;
 let csCurrentGeneratedVideo = null;
@@ -1148,35 +1158,81 @@ async function loadVoices() {
     const listEl = document.getElementById('cs-voice-list');
     if (!listEl) return;
     if (csVoicesList.length === 0) {
-        listEl.innerHTML = `<div class="text-slate-500 text-xs italic py-3 col-span-2 text-center">Đang tải danh sách giọng đọc AI...</div>`;
+        listEl.innerHTML = `<div class="text-slate-500 text-xs italic py-3 col-span-2 text-center">Đang nạp danh sách giọng đọc AI từ ElevenLabs...</div>`;
     }
     try {
         const res = await fetch('/api/content-studio/voices', { headers: getAuthHeaders() });
         const data = await res.json();
         if (data.success && data.voices) {
             csVoicesList = data.voices;
-            renderVoices(csVoicesList);
+            filterAndRenderVoices();
         }
     } catch (e) {
         console.error("Load voices error:", e);
     }
 }
 
-function renderVoices(voices) {
+function csFilterVoices(filter) {
+    csVoiceFilter = filter;
+    const filters = ['all', 'custom', 'female', 'male'];
+    filters.forEach(f => {
+        const btn = document.getElementById(`cs-vfilter-${f}`);
+        if (!btn) return;
+        if (f === filter) {
+            btn.className = 'px-2.5 py-1 rounded-lg text-[11px] font-bold bg-purple-600/30 text-purple-200 border border-purple-500/40 cursor-pointer transition-all shadow-sm';
+        } else {
+            btn.className = 'px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-900 text-slate-400 border border-slate-800 hover:text-slate-200 cursor-pointer transition-all';
+        }
+    });
+    filterAndRenderVoices();
+}
+
+function csSearchVoices(q) {
+    csVoiceSearchQuery = (q || '').trim().toLowerCase();
+    filterAndRenderVoices();
+}
+
+function filterAndRenderVoices() {
     const listEl = document.getElementById('cs-voice-list');
     if (!listEl) return;
+
+    let filtered = csVoicesList.filter(v => {
+        if (csVoiceFilter === 'custom' && !v.is_custom) return false;
+        if (csVoiceFilter === 'female' && (v.gender || '').toLowerCase() !== 'female') return false;
+        if (csVoiceFilter === 'male' && (v.gender || '').toLowerCase() !== 'male') return false;
+
+        if (csVoiceSearchQuery) {
+            const name = (v.name || '').toLowerCase();
+            const style = (v.style || '').toLowerCase();
+            const lang = (v.language || '').toLowerCase();
+            if (!name.includes(csVoiceSearchQuery) && !style.includes(csVoiceSearchQuery) && !lang.includes(csVoiceSearchQuery)) {
+                return false;
+            }
+        }
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        listEl.innerHTML = `<div class="text-slate-500 text-xs italic py-4 col-span-2 text-center">Không tìm thấy giọng đọc phù hợp với tiêu chí lọc</div>`;
+        return;
+    }
+
     let html = '';
-    voices.forEach(v => {
+    filtered.forEach(v => {
         const isSel = (v.id === csSelectedVoiceId);
-        const borderCls = isSel ? 'border-purple-500 bg-purple-950/40 shadow-sm shadow-purple-500/20' : 'border-slate-800 bg-slate-950/80 hover:border-slate-700';
+        const borderCls = isSel ? 'border-purple-500 bg-purple-950/40 shadow-sm shadow-purple-500/20 ring-1 ring-purple-500/40' : 'border-slate-800 bg-slate-950/80 hover:border-slate-700';
         html += `
-            <div onclick="csSelectVoice('${v.id}')" class="p-2.5 rounded-xl border ${borderCls} cursor-pointer transition-all flex items-center justify-between gap-2 text-xs group">
-                <div class="space-y-0.5 truncate flex-grow">
+            <div onclick="csSelectVoice('${v.id}')" class="p-2.5 rounded-xl border ${borderCls} cursor-pointer transition-all flex items-center justify-between gap-2 text-xs group relative">
+                <div class="space-y-1 truncate flex-grow">
                     <div class="font-bold text-slate-100 flex items-center gap-1.5 truncate">
                         <span class="w-1.5 h-1.5 rounded-full ${isSel ? 'bg-purple-400' : 'bg-slate-600'}"></span>
                         <span class="truncate">${escapeHtml(v.name)}</span>
+                        ${v.is_custom ? `<span class="px-1.5 py-0.2 rounded-full text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold shrink-0">🌟 Custom</span>` : ''}
                     </div>
-                    <p class="text-[10px] text-slate-400 truncate">${escapeHtml(v.style || v.language)}</p>
+                    <div class="flex items-center gap-2 text-[10px] text-slate-400 truncate">
+                        <span class="px-1 py-0.2 rounded bg-slate-900 border border-slate-800 text-slate-400">${(v.gender === 'female' ? 'Nữ' : (v.gender === 'male' ? 'Nam' : 'AI'))}</span>
+                        <span class="truncate">${escapeHtml(v.style || v.language)}</span>
+                    </div>
                 </div>
                 ${v.preview_url ? `
                     <button type="button" onclick="event.stopPropagation(); csPlayVoiceSample('${v.preview_url}')" class="px-2 py-1 bg-slate-800 hover:bg-purple-600 hover:text-white rounded-lg text-slate-300 text-[10px] font-bold transition-all flex items-center gap-1 shrink-0" title="Nghe thử giọng">
@@ -1191,7 +1247,7 @@ function renderVoices(voices) {
 
 function csSelectVoice(voiceId) {
     csSelectedVoiceId = voiceId;
-    renderVoices(csVoicesList);
+    filterAndRenderVoices();
 }
 
 function csPlayVoiceSample(url) {
@@ -1207,36 +1263,95 @@ function csPlayVoiceSample(url) {
 async function loadAvatars() {
     const listEl = document.getElementById('cs-avatar-list');
     if (!listEl) return;
-    if (csAvatarsList.length === 0) {
-        listEl.innerHTML = `<div class="text-slate-500 text-xs italic py-3 col-span-6 text-center">Đang tải danh sách MC ảo...</div>`;
+    if (!csAvatarsData.avatars || csAvatarsData.avatars.length === 0) {
+        listEl.innerHTML = `<div class="text-slate-500 text-xs italic py-3 col-span-6 text-center">Đang tải danh sách người mẫu...</div>`;
     }
     try {
         const res = await fetch('/api/content-studio/avatars', { headers: getAuthHeaders() });
         const data = await res.json();
-        if (data.success && data.avatars) {
-            csAvatarsList = data.avatars;
-            renderAvatars(csAvatarsList);
+        if (data.success) {
+            csAvatarsData = data;
+            
+            // Cập nhật huy hiệu hạn mức (Quota)
+            const quotaBadge = document.getElementById('cs-avatar-quota-badge');
+            if (quotaBadge && data.quota) {
+                if (data.quota.is_admin) {
+                    quotaBadge.innerText = 'Mẫu: Vô Hạn (Admin)';
+                    quotaBadge.className = 'text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-950/60 text-purple-300 border border-purple-800/60';
+                } else {
+                    const isFull = !data.quota.can_upload;
+                    quotaBadge.innerText = `Mẫu của bạn: ${data.quota.used} / ${data.quota.max}`;
+                    quotaBadge.className = isFull 
+                        ? 'text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-950/60 text-amber-300 border border-amber-800/60 font-bold'
+                        : 'text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-950/60 text-emerald-300 border border-emerald-800/60';
+                }
+            }
+
+            filterAndRenderAvatars();
+            renderAdminSystemAvatars();
         }
     } catch (e) {
         console.error("Load avatars error:", e);
     }
 }
 
-function renderAvatars(avatars) {
+function csFilterAvatars(filter) {
+    csAvatarFilter = filter;
+    const filters = ['all', 'custom', 'system', 'female', 'male'];
+    filters.forEach(f => {
+        const btn = document.getElementById(`cs-afilter-${f}`);
+        if (!btn) return;
+        if (f === filter) {
+            btn.className = 'px-2.5 py-1 rounded-lg text-[11px] font-bold bg-purple-600/30 text-purple-200 border border-purple-500/40 cursor-pointer transition-all shadow-sm';
+        } else {
+            btn.className = 'px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-900 text-slate-400 border border-slate-800 hover:text-slate-200 cursor-pointer transition-all';
+        }
+    });
+    filterAndRenderAvatars();
+}
+
+function filterAndRenderAvatars() {
     const listEl = document.getElementById('cs-avatar-list');
     if (!listEl) return;
+
+    const avatars = csAvatarsData.avatars || [];
+    let filtered = avatars.filter(a => {
+        if (csAvatarFilter === 'custom' && a.is_system) return false;
+        if (csAvatarFilter === 'system' && !a.is_system) return false;
+        if (csAvatarFilter === 'female' && (a.gender || '').toLowerCase() !== 'female') return false;
+        if (csAvatarFilter === 'male' && (a.gender || '').toLowerCase() !== 'male') return false;
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        listEl.innerHTML = `<div class="text-slate-500 text-xs italic py-4 col-span-6 text-center">Chưa có người mẫu nào thuộc danh mục này</div>`;
+        return;
+    }
+
     let html = '';
-    avatars.forEach(a => {
+    filtered.forEach(a => {
         const isSel = (a.id === csSelectedAvatarId);
-        const borderCls = isSel ? 'border-purple-500 ring-2 ring-purple-500/40' : 'border-slate-800 hover:border-slate-700';
+        const borderCls = isSel ? 'border-purple-500 ring-2 ring-purple-500/40 shadow-lg shadow-purple-500/20' : 'border-slate-800 hover:border-slate-700';
         html += `
-            <div onclick="csSelectAvatar('${a.id}')" class="rounded-xl border ${borderCls} overflow-hidden cursor-pointer transition-all bg-slate-950 flex flex-col text-center group">
+            <div onclick="csSelectAvatar('${a.id}')" class="rounded-xl border ${borderCls} overflow-hidden cursor-pointer transition-all bg-slate-950 flex flex-col text-center group relative">
                 <div class="w-full aspect-square bg-slate-900 relative overflow-hidden">
                     <img src="${a.preview_img || 'https://files2.heygen.ai/avatar/v3/Daisy-inskirt-20220818/preview_target.webp'}" alt="${escapeHtml(a.name)}" class="w-full h-full object-cover group-hover:scale-105 transition-all duration-300" onerror="this.src='https://files2.heygen.ai/avatar/v3/Daisy-inskirt-20220818/preview_target.webp'">
-                    ${isSel ? `<div class="absolute top-1 right-1 w-4 h-4 rounded-full bg-purple-500 text-white flex items-center justify-center text-[10px] font-bold">✓</div>` : ''}
+                    ${isSel ? `<div class="absolute top-1 right-1 w-4 h-4 rounded-full bg-purple-500 text-white flex items-center justify-center text-[10px] font-bold shadow">✓</div>` : ''}
+                    ${!a.is_system ? `
+                        <button type="button" onclick="event.stopPropagation(); deleteAvatar('${a.id}')" class="absolute top-1 left-1 w-5 h-5 rounded-lg bg-rose-950/80 hover:bg-rose-600 text-rose-200 hover:text-white border border-rose-800/80 flex items-center justify-center text-[10px] transition-all opacity-0 group-hover:opacity-100 cursor-pointer" title="Xóa mẫu này để giải phóng dung lượng">
+                            🗑️
+                        </button>
+                    ` : ''}
+                    <div class="absolute bottom-1 left-1 right-1 flex items-center justify-between">
+                        ${a.is_system 
+                            ? `<span class="px-1 py-0.2 rounded text-[8px] bg-sky-950/80 text-sky-300 border border-sky-800/60 font-mono font-bold">Hệ Thống</span>`
+                            : `<span class="px-1 py-0.2 rounded text-[8px] bg-emerald-950/80 text-emerald-300 border border-emerald-800/60 font-mono font-bold">Mẫu Của Bạn</span>`
+                        }
+                    </div>
                 </div>
                 <div class="p-1.5">
-                    <div class="text-[10px] font-bold text-slate-200 truncate" title="${escapeHtml(a.name)}">${escapeHtml(a.name.split(' ')[0])}</div>
+                    <div class="text-[10px] font-bold text-slate-200 truncate" title="${escapeHtml(a.name)}">${escapeHtml(a.name)}</div>
+                    <div class="text-[9px] text-slate-400 truncate">${escapeHtml(a.style || '')}</div>
                 </div>
             </div>
         `;
@@ -1246,7 +1361,212 @@ function renderAvatars(avatars) {
 
 function csSelectAvatar(avatarId) {
     csSelectedAvatarId = avatarId;
-    renderAvatars(csAvatarsList);
+    filterAndRenderAvatars();
+}
+
+function renderAdminSystemAvatars() {
+    const grid = document.getElementById('admin-system-avatars-grid');
+    const countEl = document.getElementById('admin-sys-avatar-count');
+    if (!grid) return;
+
+    const sysAvatars = csAvatarsData.system_avatars || [];
+    if (countEl) countEl.innerText = `${sysAvatars.length} Mẫu`;
+
+    if (sysAvatars.length === 0) {
+        grid.innerHTML = `<div class="text-slate-500 text-xs italic py-6 col-span-6 text-center">Chưa có người mẫu hệ thống nào. Bấm '➕ Thêm Người Mẫu Hệ Thống' để tải lên mẫu đầu tiên.</div>`;
+        return;
+    }
+
+    let html = '';
+    sysAvatars.forEach(a => {
+        html += `
+            <div class="rounded-xl border border-slate-800 bg-slate-950 overflow-hidden flex flex-col group relative">
+                <div class="w-full aspect-square bg-slate-900 relative overflow-hidden">
+                    <img src="${a.preview_img || 'https://files2.heygen.ai/avatar/v3/Daisy-inskirt-20220818/preview_target.webp'}" alt="${escapeHtml(a.name)}" class="w-full h-full object-cover group-hover:scale-105 transition-all duration-300" onerror="this.src='https://files2.heygen.ai/avatar/v3/Daisy-inskirt-20220818/preview_target.webp'">
+                    <button onclick="adminDeleteSystemAvatar('${a.id}')" class="absolute top-1 right-1 w-6 h-6 rounded-lg bg-rose-950/80 hover:bg-rose-600 text-rose-200 hover:text-white border border-rose-800 flex items-center justify-center text-xs transition-all opacity-0 group-hover:opacity-100 cursor-pointer" title="Xóa mẫu hệ thống này">
+                        🗑️
+                    </button>
+                    <span class="absolute bottom-1 left-1 px-1.5 py-0.2 rounded text-[9px] bg-slate-950/80 text-purple-300 border border-purple-800/60 font-mono font-bold">${a.gender === 'female' ? 'Nữ' : 'Nam'}</span>
+                </div>
+                <div class="p-2 space-y-0.5">
+                    <div class="text-xs font-bold text-slate-200 truncate" title="${escapeHtml(a.name)}">${escapeHtml(a.name)}</div>
+                    <div class="text-[10px] text-slate-400 truncate">${escapeHtml(a.style || 'MC Bán Hàng')}</div>
+                </div>
+            </div>
+        `;
+    });
+    grid.innerHTML = html;
+}
+
+function openUploadAvatarModal(isSystem = false) {
+    csUploadIsSystem = isSystem;
+    const isClient = (currentUserRole !== 'admin');
+
+    if (!isSystem && isClient && csAvatarsData.quota && !csAvatarsData.quota.can_upload) {
+        alert(`⚠️ Bạn đã đạt giới hạn tối đa ${csAvatarsData.quota.max} mẫu tải lên!\nVui lòng xóa bớt mẫu cũ của bạn để tải thêm mẫu mới, hoặc liên hệ Admin.`);
+        return;
+    }
+
+    const modal = document.getElementById('modal-upload-avatar');
+    const titleEl = document.getElementById('modal-upload-avatar-title');
+    const adminOpt = document.getElementById('avatar-admin-option');
+    const isSysCheck = document.getElementById('avatar-is-system-check');
+    const quotaText = document.getElementById('avatar-quota-text');
+
+    if (titleEl) {
+        titleEl.innerHTML = isSystem 
+            ? `<span>🎭</span> Tải Lên Mẫu Hệ Thống Mới (Toàn Hệ Thống)`
+            : `<span>📸</span> Tải Lên Hình Ảnh Người Mẫu Mới Của Bạn`;
+    }
+
+    if (adminOpt) {
+        if (currentUserRole === 'admin') {
+            adminOpt.classList.remove('hidden');
+            if (isSysCheck) isSysCheck.checked = isSystem;
+        } else {
+            adminOpt.classList.add('hidden');
+            if (isSysCheck) isSysCheck.checked = false;
+        }
+    }
+
+    if (quotaText && csAvatarsData.quota) {
+        if (currentUserRole === 'admin') {
+            quotaText.innerText = "Tài khoản Quản trị viên (Admin) không bị giới hạn hạn mức người mẫu tải lên.";
+        } else {
+            quotaText.innerText = `Hạn mức tài khoản: ${csAvatarsData.quota.used} / ${csAvatarsData.quota.max} mẫu. Bạn có thể xóa mẫu cũ bất kỳ lúc nào để giải phóng dung lượng.`;
+        }
+    }
+
+    // Reset Form
+    const fileInput = document.getElementById('avatar-file-input');
+    const nameInput = document.getElementById('avatar-name-input');
+    const styleInput = document.getElementById('avatar-style-input');
+    const previewImg = document.getElementById('avatar-preview-img');
+    const placeholderBox = document.getElementById('avatar-placeholder-box');
+
+    if (fileInput) fileInput.value = '';
+    if (nameInput) nameInput.value = '';
+    if (styleInput) styleInput.value = '';
+    if (previewImg) { previewImg.src = ''; previewImg.classList.add('hidden'); }
+    if (placeholderBox) placeholderBox.classList.remove('hidden');
+
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeUploadAvatarModal() {
+    const modal = document.getElementById('modal-upload-avatar');
+    if (modal) modal.classList.add('hidden');
+}
+
+function previewAvatarImage(input) {
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const previewImg = document.getElementById('avatar-preview-img');
+            const placeholderBox = document.getElementById('avatar-placeholder-box');
+            if (previewImg) {
+                previewImg.src = e.target.result;
+                previewImg.classList.remove('hidden');
+            }
+            if (placeholderBox) placeholderBox.classList.add('hidden');
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+async function submitUploadAvatar(e) {
+    if (e) e.preventDefault();
+    const fileInput = document.getElementById('avatar-file-input');
+    const nameInput = document.getElementById('avatar-name-input');
+    const genderSelect = document.getElementById('avatar-gender-select');
+    const styleInput = document.getElementById('avatar-style-input');
+    const isSysCheck = document.getElementById('avatar-is-system-check');
+    const btn = document.getElementById('btn-submit-upload-avatar');
+
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+        alert("Vui lòng chọn một file hình ảnh người mẫu (PNG, JPG, WEBP)!");
+        return;
+    }
+
+    const file = fileInput.files[0];
+    const name = nameInput ? nameInput.value.trim() : '';
+    const gender = genderSelect ? genderSelect.value : 'female';
+    const style = styleInput ? styleInput.value.trim() : '';
+    const isSystem = (isSysCheck && isSysCheck.checked) || csUploadIsSystem;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('name', name);
+    formData.append('gender', gender);
+    formData.append('style', style);
+    formData.append('is_system', isSystem ? 'true' : 'false');
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span>⏳</span> Đang tải lên...`;
+    }
+
+    try {
+        const headers = getAuthHeaders();
+        delete headers['Content-Type']; // Để browser tự động gắn multipart boundary
+
+        const res = await fetch('/api/content-studio/avatars/upload', {
+            method: 'POST',
+            headers: headers,
+            body: formData
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert("🎉 Tải lên hình ảnh người mẫu thành công!");
+            closeUploadAvatarModal();
+            await loadAvatars();
+            if (data.avatar && data.avatar.id) {
+                csSelectedAvatarId = data.avatar.id;
+                filterAndRenderAvatars();
+            }
+        } else {
+            alert(data.message || "Lỗi tải lên hình ảnh");
+        }
+    } catch (err) {
+        alert("Lỗi kết nối khi tải lên: " + err.message);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<span>🚀</span> Tải Lên Mẫu`;
+        }
+    }
+}
+
+async function deleteAvatar(avatarId) {
+    if (!confirm("Bạn có chắc chắn muốn xóa người mẫu này? Thao tác này sẽ giải phóng 1 slot trong hạn mức tải lên của bạn.")) {
+        return;
+    }
+    try {
+        const res = await fetch(`/api/content-studio/avatars/${avatarId}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert("✅ Đã xóa người mẫu thành công!");
+            if (csSelectedAvatarId === avatarId) {
+                csSelectedAvatarId = 'Daisy-inskirt-20220818';
+            }
+            await loadAvatars();
+        } else {
+            alert(data.message || "Lỗi xóa người mẫu");
+        }
+    } catch (e) {
+        alert("Lỗi kết nối: " + e.message);
+    }
+}
+
+async function adminDeleteSystemAvatar(avatarId) {
+    if (!confirm("⚠️ Bạn có chắc chắn muốn xóa người mẫu hệ thống này? Tất cả khách hàng sẽ không còn thấy mẫu này nữa.")) {
+        return;
+    }
+    await deleteAvatar(avatarId);
 }
 
 function csUpdateCharCount() {
@@ -1515,6 +1835,9 @@ async function loadPlatformConfigs() {
             }
             if (costVoice && data.cost_per_voice) costVoice.value = data.cost_per_voice;
             if (costVideo && data.cost_per_video) costVideo.value = data.cost_per_video;
+            const maxAvatarsInput = document.getElementById('admin-ai-max-avatars');
+            if (maxAvatarsInput && data.max_user_custom_avatars) maxAvatarsInput.value = data.max_user_custom_avatars;
+            loadAvatars();
         }
     } catch (e) {
         console.error("loadPlatformConfigs error:", e);
@@ -1530,6 +1853,7 @@ async function savePlatformConfigs() {
     const supaKeyInput = document.getElementById('admin-ai-supa-key');
     const costVoice = document.getElementById('admin-ai-cost-voice');
     const costVideo = document.getElementById('admin-ai-cost-video');
+    const maxAvatarsInput = document.getElementById('admin-ai-max-avatars');
 
     const payload = {};
     if (elInput && elInput.value.trim()) payload.elevenlabs_api_key = elInput.value.trim();
@@ -1538,6 +1862,7 @@ async function savePlatformConfigs() {
     if (supaKeyInput && supaKeyInput.value.trim()) payload.supabase_anon_key = supaKeyInput.value.trim();
     if (costVoice) payload.cost_per_voice = parseInt(costVoice.value) || 2;
     if (costVideo) payload.cost_per_video = parseInt(costVideo.value) || 10;
+    if (maxAvatarsInput) payload.max_user_custom_avatars = parseInt(maxAvatarsInput.value) || 3;
 
     try {
         const res = await fetch('/api/admin/platforms/config', {

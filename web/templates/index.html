@@ -429,20 +429,49 @@
                                 </span>
                                 <span class="text-[11px] text-purple-400 font-mono">2 Credits / Lần</span>
                             </label>
-                            <div id="cs-voice-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+                            <!-- Thanh Lọc & Tìm Kiếm Giọng Đọc -->
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5 custom-scrollbar" id="cs-voice-filters">
+                                    <button type="button" onclick="csFilterVoices('all')" id="cs-vfilter-all" class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-purple-600/30 text-purple-200 border border-purple-500/40 cursor-pointer transition-all">Tất Cả</button>
+                                    <button type="button" onclick="csFilterVoices('custom')" id="cs-vfilter-custom" class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-900 text-amber-300 border border-slate-800 hover:border-amber-500/40 cursor-pointer transition-all">🌟 Giọng Custom</button>
+                                    <button type="button" onclick="csFilterVoices('female')" id="cs-vfilter-female" class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-900 text-slate-400 border border-slate-800 hover:text-slate-200 cursor-pointer transition-all">👩 Nữ</button>
+                                    <button type="button" onclick="csFilterVoices('male')" id="cs-vfilter-male" class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-900 text-slate-400 border border-slate-800 hover:text-slate-200 cursor-pointer transition-all">👨 Nam</button>
+                                </div>
+                                <div class="relative w-full sm:w-44">
+                                    <input type="text" id="cs-voice-search" oninput="csSearchVoices(this.value)" placeholder="🔍 Tìm giọng đọc..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-white outline-none focus:border-purple-500 font-sans">
+                                </div>
+                            </div>
+                            <div id="cs-voice-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-52 overflow-y-auto pr-1 custom-scrollbar">
                                 <!-- Populated dynamically by v4_app.js -->
                             </div>
                         </div>
 
-                        <!-- 5. Chọn MC Ảo HeyGen -->
+                        <!-- 5. Chọn MC Ảo / Người Mẫu -->
                         <div class="space-y-2">
-                            <label class="text-xs font-semibold text-slate-300 flex items-center justify-between">
-                                <span class="flex items-center gap-1.5">
-                                    <span>👤 Chọn MC Ảo Livestream (HeyGen)</span>
-                                </span>
-                                <span class="text-[11px] text-emerald-400 font-mono">10 Credits / Video</span>
-                            </label>
-                            <div id="cs-avatar-list" class="grid grid-cols-3 sm:grid-cols-6 gap-2 max-h-44 overflow-y-auto pr-1 custom-scrollbar">
+                            <div class="flex items-center justify-between">
+                                <label class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                                    <span>👤 Chọn Người Mẫu / MC Ảo</span>
+                                </label>
+                                <div class="flex items-center gap-2">
+                                    <span id="cs-avatar-quota-badge" class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-950/60 text-purple-300 border border-purple-800/60">
+                                        Mẫu của bạn: 0 / 3
+                                    </span>
+                                    <button type="button" onclick="openUploadAvatarModal(false)" class="px-2.5 py-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-[11px] rounded-lg shadow-sm shadow-purple-600/30 transition-all flex items-center gap-1 cursor-pointer">
+                                        <span>➕ Tải Lên Mẫu Ảnh</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Bộ Lọc Người Mẫu -->
+                            <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5 custom-scrollbar" id="cs-avatar-filters">
+                                <button type="button" onclick="csFilterAvatars('all')" id="cs-afilter-all" class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-purple-600/30 text-purple-200 border border-purple-500/40 cursor-pointer transition-all">Tất Cả</button>
+                                <button type="button" onclick="csFilterAvatars('custom')" id="cs-afilter-custom" class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-900 text-emerald-300 border border-slate-800 hover:border-emerald-500/40 cursor-pointer transition-all">🌟 Mẫu Của Bạn</button>
+                                <button type="button" onclick="csFilterAvatars('system')" id="cs-afilter-system" class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-900 text-sky-300 border border-slate-800 hover:border-sky-500/40 cursor-pointer transition-all">🏛️ Mẫu Hệ Thống</button>
+                                <button type="button" onclick="csFilterAvatars('female')" id="cs-afilter-female" class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-900 text-slate-400 border border-slate-800 hover:text-slate-200 cursor-pointer transition-all">Nữ</button>
+                                <button type="button" onclick="csFilterAvatars('male')" id="cs-afilter-male" class="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-slate-900 text-slate-400 border border-slate-800 hover:text-slate-200 cursor-pointer transition-all">Nam</button>
+                            </div>
+
+                            <div id="cs-avatar-list" class="grid grid-cols-3 sm:grid-cols-6 gap-2.5 max-h-52 overflow-y-auto pr-1 custom-scrollbar">
                                 <!-- Populated dynamically by v4_app.js -->
                             </div>
                         </div>
@@ -665,7 +694,7 @@
                     </div>
                 </div>
 
-                <!-- Thiết Lập Hạn Mức Tiêu Thụ Credits -->
+                <!-- Thiết Lập Hạn Mức Tiêu Thụ Credits & Mẫu Người Dùng -->
                 <div class="p-3 bg-slate-950/50 rounded-xl border border-slate-800 flex flex-wrap items-center justify-between gap-4 text-xs">
                     <div class="flex flex-wrap items-center gap-6">
                         <div class="flex items-center gap-2">
@@ -678,8 +707,32 @@
                             <input type="number" id="admin-ai-cost-video" value="10" min="1" class="w-16 bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-center text-white font-mono outline-none focus:border-purple-500">
                             <span class="text-slate-500">Credits / Video</span>
                         </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-slate-400 font-semibold">Hạn mức Mẫu User tự tải:</span>
+                            <input type="number" id="admin-ai-max-avatars" value="3" min="1" max="50" class="w-16 bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-center text-white font-mono outline-none focus:border-purple-500">
+                            <span class="text-slate-500">Mẫu / Khách</span>
+                        </div>
                     </div>
                     <span class="text-[11px] text-purple-300 font-medium">💡 Gợi ý: 500 Credits = 50 Video MC hoặc 250 Giọng đọc</span>
+                </div>
+            </div>
+
+            <!-- QUẢN LÝ NGƯỜI MẪU CÓ SẴN (SYSTEM AVATARS) CHO TOÀN BỘ KHÁCH HÀNG -->
+            <div class="glass rounded-2xl border border-slate-800 overflow-hidden shadow-xl space-y-4 p-5">
+                <div class="flex flex-wrap justify-between items-center gap-3 border-b border-slate-800/80 pb-4">
+                    <div>
+                        <h4 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                            <span>🎭 Quản Lý Người Mẫu Có Sẵn (System Avatars)</span>
+                            <span id="admin-sys-avatar-count" class="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-mono font-bold">0 Mẫu</span>
+                        </h4>
+                        <p class="text-[11px] text-slate-400">Admin có thể tải lên các mẫu ảnh/MC có sẵn để phục vụ cho tất cả các khách hàng dùng tạo video AI.</p>
+                    </div>
+                    <button onclick="openUploadAvatarModal(true)" class="px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-600/30 transition-all flex items-center gap-1.5 cursor-pointer">
+                        <span>➕ Thêm Người Mẫu Hệ Thống</span>
+                    </button>
+                </div>
+                <div id="admin-system-avatars-grid" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3 max-h-72 overflow-y-auto pr-1 custom-scrollbar">
+                    <!-- Populated by v4_app.js -->
                 </div>
             </div>
 
@@ -3030,6 +3083,74 @@
                 <button onclick="closeTopupModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-all cursor-pointer">Hủy</button>
                 <button onclick="submitTopupCredits()" class="px-5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-purple-600/30 uppercase tracking-wider transition-all cursor-pointer">Xác Nhận Nạp</button>
             </div>
+        </div>
+    </div>
+
+    <!-- MODAL: TẢI LÊN HÌNH ẢNH NGƯỜI MẪU (CLIENT & ADMIN) -->
+    <div id="modal-upload-avatar" class="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-50 hidden p-4">
+        <div class="glass w-full max-w-md rounded-2xl p-6 border border-purple-500/40 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+                <h3 id="modal-upload-avatar-title" class="text-sm font-black uppercase text-purple-400 flex items-center gap-2">
+                    <span>📸</span> Tải Lên Hình Ảnh Người Mẫu Mới
+                </h3>
+                <button onclick="closeUploadAvatarModal()" class="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer">✕</button>
+            </div>
+
+            <form id="form-upload-avatar" onsubmit="submitUploadAvatar(event)" class="space-y-3.5">
+                <!-- Dropzone / File input -->
+                <div class="space-y-1.5">
+                    <label class="text-xs font-semibold text-slate-300">Chọn ảnh chân dung người mẫu (PNG, JPG, WEBP): *</label>
+                    <div onclick="document.getElementById('avatar-file-input').click()" class="border-2 border-dashed border-slate-700 hover:border-purple-500 rounded-xl p-4 text-center cursor-pointer transition-all bg-slate-950/60 flex flex-col items-center justify-center gap-2">
+                        <img id="avatar-preview-img" src="" class="w-20 h-20 object-cover rounded-xl border border-slate-700 hidden shadow-md">
+                        <div id="avatar-placeholder-box" class="space-y-1">
+                            <div class="text-2xl">🖼️</div>
+                            <div class="text-xs text-slate-300 font-semibold">Bấm để chọn file ảnh</div>
+                            <div class="text-[10px] text-slate-500">Khuyên dùng ảnh chân dung chụp chính diện, rõ nét</div>
+                        </div>
+                    </div>
+                    <input type="file" id="avatar-file-input" accept="image/png, image/jpeg, image/jpg, image/webp" class="hidden" onchange="previewAvatarImage(this)">
+                </div>
+
+                <!-- Tên người mẫu -->
+                <div class="space-y-1">
+                    <label class="text-xs font-semibold text-slate-300">Tên người mẫu / MC: *</label>
+                    <input type="text" id="avatar-name-input" required placeholder="Ví dụ: MC Lan Anh, Chị Mai Bán Hàng..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-purple-500 font-sans">
+                </div>
+
+                <!-- Giới tính & Phong cách -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="space-y-1">
+                        <label class="text-xs font-semibold text-slate-300">Giới tính:</label>
+                        <select id="avatar-gender-select" class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-purple-500 font-sans">
+                            <option value="female">Nữ</option>
+                            <option value="male">Nam</option>
+                        </select>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs font-semibold text-slate-300">Phong cách / Trang phục:</label>
+                        <input type="text" id="avatar-style-input" placeholder="Ví dụ: Áo dài, Vest công sở..." class="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-purple-500 font-sans">
+                    </div>
+                </div>
+
+                <!-- Checkbox System Avatar (chỉ hiện khi Admin mở) -->
+                <div id="avatar-admin-option" class="hidden p-2.5 rounded-xl bg-purple-950/30 border border-purple-800/40">
+                    <label class="flex items-center gap-2 cursor-pointer text-xs text-purple-200 font-semibold">
+                        <input type="checkbox" id="avatar-is-system-check" class="accent-purple-500 rounded">
+                        <span>Lưu làm Mẫu Hệ Thống (Có sẵn cho tất cả khách hàng)</span>
+                    </label>
+                </div>
+
+                <div id="avatar-upload-quota-notice" class="text-[11px] text-slate-400 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80 leading-relaxed">
+                    💡 <span id="avatar-quota-text">Hạn mức tài khoản: 0 / 3 mẫu. Bạn có thể xóa mẫu cũ bất kỳ lúc nào để giải phóng dung lượng.</span>
+                </div>
+
+                <div class="pt-2 flex items-center justify-end gap-2.5 border-t border-slate-800">
+                    <button type="button" onclick="closeUploadAvatarModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 transition-all cursor-pointer">Hủy Bỏ</button>
+                    <button type="submit" id="btn-submit-upload-avatar" class="px-5 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-lg shadow-purple-600/30 transition-all cursor-pointer flex items-center gap-1.5">
+                        <span>🚀 Tải Lên Mẫu</span>
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 

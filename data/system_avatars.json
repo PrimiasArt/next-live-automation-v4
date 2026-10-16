@@ -1,0 +1,56 @@
+[
+  {
+    "id": "Daisy-inskirt-20220818",
+    "name": "Daisy (MC Bán Hàng Trẻ Trung)",
+    "gender": "female",
+    "preview_img": "https://files2.heygen.ai/avatar/v3/Daisy-inskirt-20220818/preview_target.webp",
+    "style": "Trang phục công sở thanh lịch, phù hợp Shopee/TikTok",
+    "is_system": true,
+    "created_at": "2026-01-01 00:00:00"
+  },
+  {
+    "id": "Bryan_IT_Sitting_public",
+    "name": "Bryan (Chuyên Gia Công Nghệ)",
+    "gender": "male",
+    "preview_img": "https://files2.heygen.ai/avatar/v3/Bryan_IT_Sitting_public/preview_target.webp",
+    "style": "Áo sơ mi hiện đại, tư vấn kỹ thuật & sản phẩm",
+    "is_system": true,
+    "created_at": "2026-01-01 00:00:00"
+  },
+  {
+    "id": "Anna_public_3_20240108",
+    "name": "Anna (Host Livestream Chuyên Nghiệp)",
+    "gender": "female",
+    "preview_img": "https://files2.heygen.ai/avatar/v3/Anna_public_3_20240108/preview_target.webp",
+    "style": "Thân thiện, tương tác tốt với khán giả livestream",
+    "is_system": true,
+    "created_at": "2026-01-01 00:00:00"
+  },
+  {
+    "id": "Wayne_20240711",
+    "name": "Wayne (MC Nam Lịch Lãm)",
+    "gender": "male",
+    "preview_img": "https://files2.heygen.ai/avatar/v3/Wayne_20240711/preview_target.webp",
+    "style": "Vest lịch sự, phù hợp sự kiện ra mắt & flash sale",
+    "is_system": true,
+    "created_at": "2026-01-01 00:00:00"
+  },
+  {
+    "id": "Susan_public_2_20240328",
+    "name": "Susan (Tư Vấn Viên Mỹ Phẩm)",
+    "gender": "female",
+    "preview_img": "https://files2.heygen.ai/avatar/v3/Susan_public_2_20240328/preview_target.webp",
+    "style": "Nhẹ nhàng, phong thái chuyên gia sức khỏe làm đẹp",
+    "is_system": true,
+    "created_at": "2026-01-01 00:00:00"
+  },
+  {
+    "id": "Tyler_public_20240115",
+    "name": "Tyler (MC Năng Động Sôi Nổi)",
+    "gender": "male",
+    "preview_img": "https://files2.heygen.ai/avatar/v3/Tyler_public_20240115/preview_target.webp",
+    "style": "Trang phục casual, phong cách bán hàng tốc độ cao",
+    "is_system": true,
+    "created_at": "2026-01-01 00:00:00"
+  }
+]
