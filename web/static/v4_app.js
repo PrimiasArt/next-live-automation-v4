@@ -1115,9 +1115,6 @@ function escapeHtml(text) {
 
 let csVoicesList = [];
 let csAvatarsList = [];
-let csSelectedVoiceId = '21m00Tcm4TlvDq8ikWAM';
-let csSelectedAvatarId = 'Daisy-inskirt-20220818';
-let csVoicesList = [];
 let csVoiceFilter = 'all';
 let csVoiceSearchQuery = '';
 let csSelectedVoiceId = '21m00Tcm4TlvDq8ikWAM';
