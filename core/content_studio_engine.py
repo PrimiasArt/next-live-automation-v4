@@ -31,7 +31,7 @@ CURATED_VOICES = [
         "language": "Tiếng Việt / Đa ngữ",
         "gender": "female",
         "style": "Kể chuyện, Giới thiệu sản phẩm",
-        "preview_url": "https://storage.googleapis.com/eleven-public-prod/previews/voices/21m00Tcm4TlvDq8ikWAM/preview.mp3"
+        "preview_url": "/api/content-studio/voices/sample/21m00Tcm4TlvDq8ikWAM"
     },
     {
         "id": "AZnzlk1XvdvUeBnXmlld",
@@ -39,7 +39,7 @@ CURATED_VOICES = [
         "language": "Tiếng Việt / Đa ngữ",
         "gender": "female",
         "style": "Flash Sale, Chốt đơn livestream",
-        "preview_url": "https://storage.googleapis.com/eleven-public-prod/previews/voices/AZnzlk1XvdvUeBnXmlld/preview.mp3"
+        "preview_url": "/api/content-studio/voices/sample/AZnzlk1XvdvUeBnXmlld"
     },
     {
         "id": "ErXwobaYiN019PkySvjV",
@@ -47,7 +47,7 @@ CURATED_VOICES = [
         "language": "Tiếng Việt / Đa ngữ",
         "gender": "male",
         "style": "Tin tức, Đánh giá công nghệ, Review",
-        "preview_url": "https://storage.googleapis.com/eleven-public-prod/previews/voices/ErXwobaYiN019PkySvjV/preview.mp3"
+        "preview_url": "/api/content-studio/voices/sample/ErXwobaYiN019PkySvjV"
     },
     {
         "id": "VR6AewLTigWG4xSOukaG",
@@ -55,7 +55,7 @@ CURATED_VOICES = [
         "language": "Tiếng Việt / Đa ngữ",
         "gender": "male",
         "style": "Khuyến mãi, Livestream bán hàng",
-        "preview_url": "https://storage.googleapis.com/eleven-public-prod/previews/voices/VR6AewLTigWG4xSOukaG/preview.mp3"
+        "preview_url": "/api/content-studio/voices/sample/VR6AewLTigWG4xSOukaG"
     },
     {
         "id": "MF3mGyEYCl7XYWbV9V6O",
@@ -63,7 +63,7 @@ CURATED_VOICES = [
         "language": "Tiếng Việt / Đa ngữ",
         "gender": "female",
         "style": "Thời trang, Mỹ phẩm, Chăm sóc sắc đẹp",
-        "preview_url": "https://storage.googleapis.com/eleven-public-prod/previews/voices/MF3mGyEYCl7XYWbV9V6O/preview.mp3"
+        "preview_url": "/api/content-studio/voices/sample/MF3mGyEYCl7XYWbV9V6O"
     },
     {
         "id": "pNInz6obpgDQGcFmaJgB",
@@ -71,52 +71,68 @@ CURATED_VOICES = [
         "language": "Tiếng Việt / Đa ngữ",
         "gender": "male",
         "style": "Quảng cáo TVC, Bán hàng cao cấp",
-        "preview_url": "https://storage.googleapis.com/eleven-public-prod/previews/voices/pNInz6obpgDQGcFmaJgB/preview.mp3"
+        "preview_url": "/api/content-studio/voices/sample/pNInz6obpgDQGcFmaJgB"
     }
 ]
 
-# Danh sách MC Ảo HeyGen tuyển chọn (Curated Avatars phong cách Livestream)
+# Upstream Voice Previews Cache
+VOICE_PREVIEWS = {
+    "21m00Tcm4TlvDq8ikWAM": "https://storage.googleapis.com/eleven-public-prod/previews/voices/21m00Tcm4TlvDq8ikWAM/preview.mp3",
+    "AZnzlk1XvdvUeBnXmlld": "https://storage.googleapis.com/eleven-public-prod/previews/voices/AZnzlk1XvdvUeBnXmlld/preview.mp3",
+    "ErXwobaYiN019PkySvjV": "https://storage.googleapis.com/eleven-public-prod/previews/voices/ErXwobaYiN019PkySvjV/preview.mp3",
+    "VR6AewLTigWG4xSOukaG": "https://storage.googleapis.com/eleven-public-prod/previews/voices/VR6AewLTigWG4xSOukaG/preview.mp3",
+    "MF3mGyEYCl7XYWbV9V6O": "https://storage.googleapis.com/eleven-public-prod/previews/voices/MF3mGyEYCl7XYWbV9V6O/preview.mp3",
+    "pNInz6obpgDQGcFmaJgB": "https://storage.googleapis.com/eleven-public-prod/previews/voices/pNInz6obpgDQGcFmaJgB/preview.mp3",
+}
+
+# Danh sách MC Ảo tuyển chọn (Curated Avatars phong cách Livestream)
 CURATED_AVATARS = [
     {
         "id": "Daisy-inskirt-20220818",
         "name": "Daisy (MC Bán Hàng Trẻ Trung)",
         "gender": "female",
-        "preview_img": "https://files2.heygen.ai/avatar/v3/Daisy-inskirt-20220818/preview_target.webp",
+        "preview_img": "/api/content-studio/avatars/image/sys_daisy.png",
+        "local_file": "storage/system_avatars/sys_daisy.png",
         "style": "Trang phục công sở thanh lịch, phù hợp Shopee/TikTok"
     },
     {
         "id": "Bryan_IT_Sitting_public",
         "name": "Bryan (Chuyên Gia Công Nghệ)",
         "gender": "male",
-        "preview_img": "https://files2.heygen.ai/avatar/v3/Bryan_IT_Sitting_public/preview_target.webp",
+        "preview_img": "/api/content-studio/avatars/image/sys_bryan.png",
+        "local_file": "storage/system_avatars/sys_bryan.png",
         "style": "Áo sơ mi hiện đại, tư vấn kỹ thuật & sản phẩm"
     },
     {
         "id": "Anna_public_3_20240108",
         "name": "Anna (Host Livestream Chuyên Nghiệp)",
         "gender": "female",
-        "preview_img": "https://files2.heygen.ai/avatar/v3/Anna_public_3_20240108/preview_target.webp",
+        "preview_img": "/api/content-studio/avatars/image/sys_anna.png",
+        "local_file": "storage/system_avatars/sys_anna.png",
         "style": "Thân thiện, tương tác tốt với khán giả livestream"
     },
     {
         "id": "Wayne_20240711",
         "name": "Wayne (MC Nam Lịch Lãm)",
         "gender": "male",
-        "preview_img": "https://files2.heygen.ai/avatar/v3/Wayne_20240711/preview_target.webp",
+        "preview_img": "/api/content-studio/avatars/image/sys_wayne.png",
+        "local_file": "storage/system_avatars/sys_wayne.png",
         "style": "Vest lịch sự, phù hợp sự kiện ra mắt & flash sale"
     },
     {
         "id": "Susan_public_2_20240328",
         "name": "Susan (Tư Vấn Viên Mỹ Phẩm)",
         "gender": "female",
-        "preview_img": "https://files2.heygen.ai/avatar/v3/Susan_public_2_20240328/preview_target.webp",
+        "preview_img": "/api/content-studio/avatars/image/sys_susan.png",
+        "local_file": "storage/system_avatars/sys_susan.png",
         "style": "Nhẹ nhàng, phong thái chuyên gia sức khỏe làm đẹp"
     },
     {
         "id": "Tyler_public_20240115",
         "name": "Tyler (MC Năng Động Sôi Nổi)",
         "gender": "male",
-        "preview_img": "https://files2.heygen.ai/avatar/v3/Tyler_public_20240115/preview_target.webp",
+        "preview_img": "/api/content-studio/avatars/image/sys_tyler.png",
+        "local_file": "storage/system_avatars/sys_tyler.png",
         "style": "Trang phục casual, phong cách bán hàng tốc độ cao"
     }
 ]
@@ -134,6 +150,9 @@ class ContentStudioEngine:
         }
         self.system_avatars_dir = SYSTEM_AVATARS_DIR
         os.makedirs(self.system_avatars_dir, exist_ok=True)
+        self.voice_samples_dir = os.path.join(STORAGE_DIR, "voice_samples")
+        os.makedirs(self.voice_samples_dir, exist_ok=True)
+        self.voice_preview_cache: Dict[str, str] = dict(VOICE_PREVIEWS)
         self.system_avatars: List[Dict[str, Any]] = []
         self.user_avatars: Dict[str, List[Dict[str, Any]]] = {}
         self.tasks_file = os.path.join(DATA_DIR, "content_studio_tasks.json")
@@ -343,6 +362,48 @@ class ContentStudioEngine:
         except Exception as e:
             return {"success": False, "message": f"Lỗi kết nối Supabase Cloud: {str(e)}"}
 
+    def get_voice_sample(self, voice_id: str) -> Optional[str]:
+        """Lấy đường dẫn file audio nghe thử giọng nói cục bộ (Proxy & Cache an toàn, ẩn nguồn)"""
+        sample_path = os.path.join(self.voice_samples_dir, f"{voice_id}.mp3")
+        if os.path.exists(sample_path) and os.path.getsize(sample_path) > 0:
+            return sample_path
+
+        # 1. Thử tải từ URL cache nếu có
+        upstream_url = self.voice_preview_cache.get(voice_id)
+        if upstream_url and upstream_url.startswith("http"):
+            try:
+                r = requests.get(upstream_url, timeout=10)
+                if r.status_code == 200 and len(r.content) > 1000:
+                    with open(sample_path, 'wb') as f:
+                        f.write(r.content)
+                    return sample_path
+            except Exception as e:
+                print(f"Lỗi proxy voice sample: {e}")
+
+        # 2. Thử tổng hợp qua TTS API nếu có key
+        keys = self.get_api_keys()
+        el_key = keys.get("elevenlabs")
+        if el_key:
+            try:
+                el_url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+                el_res = requests.post(
+                    el_url,
+                    headers={"xi-api-key": el_key, "Content-Type": "application/json"},
+                    json={
+                        "text": "Xin chào! Đây là bản nghe thử giọng đọc AI Studio bản quyền.",
+                        "model_id": "eleven_multilingual_v2"
+                    },
+                    timeout=15
+                )
+                if el_res.status_code == 200:
+                    with open(sample_path, 'wb') as f:
+                        f.write(el_res.content)
+                    return sample_path
+            except Exception as e:
+                print(f"Lỗi TTS preview: {e}")
+
+        return None
+
     def get_voices(self) -> List[Dict[str, Any]]:
         """Lấy toàn bộ danh sách giọng đọc từ ElevenLabs API: cả giọng premade và giọng custom/cloned của tài khoản"""
         keys = self.get_api_keys()
@@ -372,23 +433,29 @@ class ContentStudioEngine:
                         labels = v.get("labels") or {}
                         gender = labels.get("gender") or "female"
                         accent = labels.get("accent") or labels.get("language") or ("Tiếng Việt / Đa ngữ" if is_custom else "Đa ngữ")
-                        desc = labels.get("description") or labels.get("use case") or v.get("description") or ("Giọng Custom độc quyền" if is_custom else "Giọng đọc AI")
+                        desc = labels.get("description") or labels.get("use case") or v.get("description") or ("Giọng Custom độc quyền" if is_custom else "Giọng đọc AI Studio")
+                        
+                        upstream_preview = v.get("preview_url")
+                        if upstream_preview:
+                            self.voice_preview_cache[vid] = upstream_preview
+                        
+                        clean_category = "custom" if is_custom else "studio"
                         
                         if vid in curated_map:
                             v_item = dict(curated_map[vid])
-                            v_item["preview_url"] = v.get("preview_url") or v_item.get("preview_url")
+                            v_item["preview_url"] = f"/api/content-studio/voices/sample/{vid}"
                             v_item["is_custom"] = is_custom
-                            v_item["category"] = category
+                            v_item["category"] = clean_category
                         else:
                             v_item = {
                                 "id": vid,
                                 "name": v.get("name"),
-                                "category": category,
+                                "category": clean_category,
                                 "is_custom": is_custom,
                                 "language": accent,
                                 "gender": gender,
                                 "style": desc,
-                                "preview_url": v.get("preview_url")
+                                "preview_url": f"/api/content-studio/voices/sample/{vid}"
                             }
                             
                         if is_custom:
@@ -398,15 +465,15 @@ class ContentStudioEngine:
                     
                     # Sắp xếp: Giọng Custom lên đầu tiên, kế tiếp là các giọng Curated & Premade
                     known_ids = {v["id"] for v in custom_voices} | {v["id"] for v in premade_voices}
-                    fallback_curated = [{**v, "is_custom": False, "category": "curated"} for v in CURATED_VOICES if v["id"] not in known_ids]
+                    fallback_curated = [{**v, "is_custom": False, "category": "studio"} for v in CURATED_VOICES if v["id"] not in known_ids]
                     
                     result = custom_voices + fallback_curated + premade_voices
                     return result
             except Exception as e:
-                print(f"ElevenLabs fetch voices error, fallback to curated: {e}")
+                print(f"Voice fetch error, fallback to curated: {e}")
 
         # Fallback danh sách Curated
-        return [{**v, "is_custom": False, "category": "curated"} for v in CURATED_VOICES]
+        return [{**v, "is_custom": False, "category": "studio"} for v in CURATED_VOICES]
 
     def get_avatars(self) -> List[Dict[str, Any]]:
         """Lấy danh sách người mẫu mặc định (tương thích backward)"""
@@ -655,12 +722,12 @@ class ContentStudioEngine:
 
         try:
             # -------------------------------------------------------------
-            # BƯỚC 1: TẠO GIỌNG NÓI TỰ NHIÊN BẰNG ELEVENLABS API
+            # BƯỚC 1: TẠO GIỌNG NÓI TỰ NHIÊN
             # -------------------------------------------------------------
             self._update_task(task_id, {
                 "status": "synthesizing_audio",
                 "progress_pct": 20,
-                "current_step": "🎙️ Đang tổng hợp giọng nói AI (ElevenLabs Engine)..."
+                "current_step": "🎙️ Đang tổng hợp giọng nói AI Studio tự nhiên..."
             })
             state.add_log("STUDIO", f"🎙️ [CONTENT-STUDIO] Đang tạo giọng nói cho tác vụ: {task['title']}")
 
@@ -691,19 +758,19 @@ class ContentStudioEngine:
                         with open(audio_path, 'wb') as f:
                             f.write(el_res.content)
                         has_real_audio = True
-                        state.add_log("STUDIO", f"✅ [ELEVENLABS] Đã tạo file audio thành công: {os.path.basename(audio_path)}")
+                        state.add_log("STUDIO", f"✅ [VOICE-AI] Đã tạo file audio thành công: {os.path.basename(audio_path)}")
                     else:
-                        state.add_log("STUDIO", f"⚠️ [ELEVENLABS] API trả mã {el_res.status_code}: {el_res.text[:120]}")
+                        state.add_log("STUDIO", f"⚠️ [VOICE-AI] API trả mã {el_res.status_code}: {el_res.text[:120]}")
                 except Exception as e:
-                    state.add_log("STUDIO", f"⚠️ [ELEVENLABS] Lỗi kết nối: {str(e)}")
+                    state.add_log("STUDIO", f"⚠️ [VOICE-AI] Lỗi kết nối: {str(e)}")
 
             # -------------------------------------------------------------
-            # BƯỚC 2: TẠO VIDEO MC KHỚP KHẨU HÌNH BẰNG HEYGEN API
+            # BƯỚC 2: TẠO VIDEO MC KHỚP KHẨU HÌNH
             # -------------------------------------------------------------
             self._update_task(task_id, {
                 "status": "rendering_video",
                 "progress_pct": 50,
-                "current_step": "🎬 Đang dựng video MC Ảo khớp khẩu hình (HeyGen AI Pipeline)..."
+                "current_step": "🎬 Đang dựng video MC Ảo khớp khẩu hình 60fps..."
             })
 
             has_real_video = False
@@ -754,7 +821,7 @@ class ContentStudioEngine:
                         res_data = hg_res.json()
                         video_id = res_data.get("data", {}).get("video_id")
                         if video_id:
-                            state.add_log("STUDIO", f"🚀 [HEYGEN] Video ID: {video_id} đang render trên Cloud...")
+                            state.add_log("STUDIO", f"🚀 [MC-AI] Tác vụ MC Video đang render trên máy chủ Cloud...")
                             # Polling kiểm tra trạng thái video
                             poll_attempts = 0
                             max_attempts = 60 # Tối đa ~5 phút
@@ -772,7 +839,7 @@ class ContentStudioEngine:
                                     pct = min(90, 50 + int(poll_attempts * 0.7))
                                     self._update_task(task_id, {
                                         "progress_pct": pct,
-                                        "current_step": f"🎬 HeyGen Cloud đang render: {v_status} ({pct}%)..."
+                                        "current_step": f"🎬 Hệ thống đang kết xuất khung hình MC ({pct}%)..."
                                     })
 
                                     if v_status == "completed":
@@ -790,12 +857,12 @@ class ContentStudioEngine:
                                                 has_real_video = True
                                                 break
                                     elif v_status == "failed":
-                                        error_msg = s_data.get("error", "HeyGen render failed")
-                                        raise Exception(f"HeyGen render thất bại: {error_msg}")
+                                        error_msg = s_data.get("error", "MC video render failed")
+                                        raise Exception(f"Kết xuất video MC thất bại: {error_msg}")
                     else:
-                        state.add_log("STUDIO", f"⚠️ [HEYGEN] API trả mã {hg_res.status_code}: {hg_res.text[:120]}")
+                        state.add_log("STUDIO", f"⚠️ [MC-AI] Máy chủ render trả mã {hg_res.status_code}: {hg_res.text[:120]}")
                 except Exception as e:
-                    state.add_log("STUDIO", f"⚠️ [HEYGEN] Lỗi xử lý: {str(e)}")
+                    state.add_log("STUDIO", f"⚠️ [MC-AI] Lỗi xử lý: {str(e)}")
 
             # -------------------------------------------------------------
             # BƯỚC 3: FALLBACK / SANDBOX MODE (NẾU CHƯA CÓ KEY HOẶC RENDER DEMO)

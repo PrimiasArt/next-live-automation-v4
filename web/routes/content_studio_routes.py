@@ -62,6 +62,15 @@ def serve_user_avatar_image(user_id, filename):
     user_av_dir = os.path.join(STORAGE_DIR, "users", user_id, "avatars")
     return send_from_directory(user_av_dir, filename)
 
+@content_studio_bp.route('/api/content-studio/voices/sample/<voice_id>', methods=['GET'])
+def serve_voice_sample(voice_id):
+    sample_path = content_studio_engine.get_voice_sample(voice_id)
+    if not sample_path or not os.path.exists(sample_path):
+        return jsonify({"success": False, "message": "Bản thu giọng đọc không tồn tại"}), 404
+    directory = os.path.dirname(sample_path)
+    filename = os.path.basename(sample_path)
+    return send_from_directory(directory, filename, mimetype="audio/mpeg")
+
 @content_studio_bp.route('/api/content-studio/credits', methods=['GET'])
 @login_required
 def get_user_credits(user):

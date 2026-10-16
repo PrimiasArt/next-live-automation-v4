@@ -1158,7 +1158,7 @@ async function loadVoices() {
     const listEl = document.getElementById('cs-voice-list');
     if (!listEl) return;
     if (csVoicesList.length === 0) {
-        listEl.innerHTML = `<div class="text-slate-500 text-xs italic py-3 col-span-2 text-center">Đang nạp danh sách giọng đọc AI từ ElevenLabs...</div>`;
+        listEl.innerHTML = `<div class="text-slate-500 text-xs italic py-3 col-span-2 text-center">Đang nạp danh sách giọng đọc AI bản quyền...</div>`;
     }
     try {
         const res = await fetch('/api/content-studio/voices', { headers: getAuthHeaders() });
@@ -1335,7 +1335,7 @@ function filterAndRenderAvatars() {
         html += `
             <div onclick="csSelectAvatar('${a.id}')" class="rounded-xl border ${borderCls} overflow-hidden cursor-pointer transition-all bg-slate-950 flex flex-col text-center group relative">
                 <div class="w-full aspect-square bg-slate-900 relative overflow-hidden">
-                    <img src="${a.preview_img || 'https://files2.heygen.ai/avatar/v3/Daisy-inskirt-20220818/preview_target.webp'}" alt="${escapeHtml(a.name)}" class="w-full h-full object-cover group-hover:scale-105 transition-all duration-300" onerror="this.src='https://files2.heygen.ai/avatar/v3/Daisy-inskirt-20220818/preview_target.webp'">
+                    <img src="${a.preview_img || '/api/content-studio/avatars/image/sys_daisy.png'}" alt="${escapeHtml(a.name)}" class="w-full h-full object-cover group-hover:scale-105 transition-all duration-300" onerror="this.src='/api/content-studio/avatars/image/sys_daisy.png'">
                     ${isSel ? `<div class="absolute top-1 right-1 w-4 h-4 rounded-full bg-purple-500 text-white flex items-center justify-center text-[10px] font-bold shadow">✓</div>` : ''}
                     ${!a.is_system ? `
                         <button type="button" onclick="event.stopPropagation(); deleteAvatar('${a.id}')" class="absolute top-1 left-1 w-5 h-5 rounded-lg bg-rose-950/80 hover:bg-rose-600 text-rose-200 hover:text-white border border-rose-800/80 flex items-center justify-center text-[10px] transition-all opacity-0 group-hover:opacity-100 cursor-pointer" title="Xóa mẫu này để giải phóng dung lượng">
@@ -1382,7 +1382,7 @@ function renderAdminSystemAvatars() {
         html += `
             <div class="rounded-xl border border-slate-800 bg-slate-950 overflow-hidden flex flex-col group relative">
                 <div class="w-full aspect-square bg-slate-900 relative overflow-hidden">
-                    <img src="${a.preview_img || 'https://files2.heygen.ai/avatar/v3/Daisy-inskirt-20220818/preview_target.webp'}" alt="${escapeHtml(a.name)}" class="w-full h-full object-cover group-hover:scale-105 transition-all duration-300" onerror="this.src='https://files2.heygen.ai/avatar/v3/Daisy-inskirt-20220818/preview_target.webp'">
+                    <img src="${a.preview_img || '/api/content-studio/avatars/image/sys_daisy.png'}" alt="${escapeHtml(a.name)}" class="w-full h-full object-cover group-hover:scale-105 transition-all duration-300" onerror="this.src='/api/content-studio/avatars/image/sys_daisy.png'">
                     <button onclick="adminDeleteSystemAvatar('${a.id}')" class="absolute top-1 right-1 w-6 h-6 rounded-lg bg-rose-950/80 hover:bg-rose-600 text-rose-200 hover:text-white border border-rose-800 flex items-center justify-center text-xs transition-all opacity-0 group-hover:opacity-100 cursor-pointer" title="Xóa mẫu hệ thống này">
                         🗑️
                     </button>
