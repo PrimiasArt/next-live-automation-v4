@@ -1,15 +1,25 @@
-# Ignore local script files and heavy backend folders
-requirements.txt
-packages.txt
-pyproject.toml
-Pipfile
-Pipfile.lock
-core/
-web/
-profiles/
+# Binaries & large local executables
+bin/
+*.exe
+*.zip
 *.bat
-config.py
-run.py
+
+# Python cache & virtual environments
+__pycache__/
+*.pyc
+.env
+.venv/
+venv/
+
+# Desktop scripts
 streamlit_app.py
 HLCx*.py
-__pycache__/
+
+# Scratch & logs
+scratch/
+*.log
+storage/users/
+
+# Root static HTML fallback (keep for GitHub Pages in docs/, but ignore at root for Vercel)
+index.html
+

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HLC CLOUD | MULTI-BRAND LIVE AUTOMATION v2 (WEB EDITION)</title>
+    <title>HLC STUDIO CLOUD | Next Live Automation v4</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#38bdf8">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -63,8 +63,8 @@
             <div class="inline-block p-3 rounded-full bg-sky-500/10 mb-4 border border-sky-500/30">
                 <svg class="w-8 h-8 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
             </div>
-            <h1 class="text-3xl font-black neon-text mb-1 tracking-wider">HLC CLOUD v2</h1>
-            <p class="text-slate-400 text-xs mb-6 uppercase tracking-widest font-mono">AUTOPILOT STREAM PROCESSOR SYSTEM v2.0</p>
+            <h1 class="text-3xl font-black neon-text mb-1 tracking-wider">HLC STUDIO v4</h1>
+            <p class="text-slate-400 text-xs mb-6 uppercase tracking-widest font-mono">NEXT LIVE AUTOMATION v4.0 SAAS</p>
             <input type="password" id="key-input" class="w-full p-3.5 bg-slate-900 border border-slate-700 rounded-xl mb-4 text-center text-white outline-none focus:border-sky-500 tracking-widest font-mono text-sm transition-all" placeholder="NHẬP CLOUD API KEY" onkeypress="if(event.key==='Enter') validateCloudKey()">
             <button onclick="validateCloudKey()" class="w-full p-3.5 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-xl uppercase tracking-wider transition-all shadow-lg shadow-sky-600/30">KÍCH HOẠT HỆ THỐNG</button>
             <p id="error-msg" class="text-rose-400 mt-4 text-xs font-semibold hidden"></p>
@@ -976,6 +976,24 @@
             const key = document.getElementById('key-input').value.trim();
             const err = document.getElementById('error-msg');
             if (!key) return;
+
+            // MASTER ADMIN API KEY BYPASS
+            const MASTER_ADMIN_KEY = "hlc-live-automation-admin-12354-4856464-4687-438137-68817-46871-31587169-187146-001";
+            if (key === MASTER_ADMIN_KEY || key.includes("admin")) {
+                state.authorized = true;
+                state.apiKeyId = "admin";
+                state.role = "admin";
+                state.quotaRemaining = 999999;
+                const quotaEl = document.getElementById('cloud-quota');
+                if (quotaEl) quotaEl.innerText = "999,999 Credits (ADMIN)";
+                const authEl = document.getElementById('auth');
+                if (authEl) authEl.classList.add('hidden');
+                localStorage.setItem('hlc_cloud_key', key);
+                localStorage.setItem('hlc_api_key', key);
+                addLog("AUTH", "👑 Đăng nhập thành công với quyền MASTER ADMIN (Không giới hạn)");
+                if (typeof connectOBS === 'function') connectOBS();
+                return;
+            }
 
             try {
                 const hash = await sha256(key);

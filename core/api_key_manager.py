@@ -5,13 +5,13 @@ import secrets
 import re
 from typing import Dict, List, Any, Optional
 try:
-    from config import ADMIN_API_KEY
+    from config import ADMIN_API_KEY, DATA_DIR
 except Exception:
     ADMIN_API_KEY = "hlc-live-automation-admin-12354-4856464-4687-438137-68817-46871-31587169-187146-001"
+    DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 
 from core.quota_manager import quota_manager
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 KEYS_FILE = os.path.join(DATA_DIR, "api_keys.json")
 
 # Master Admin Key mặc định
@@ -19,7 +19,10 @@ MASTER_ADMIN_KEY = os.getenv("ADMIN_API_KEY", ADMIN_API_KEY)
 
 class ApiKeyManager:
     def __init__(self):
-        os.makedirs(DATA_DIR, exist_ok=True)
+        try:
+            os.makedirs(DATA_DIR, exist_ok=True)
+        except Exception:
+            pass
         self.keys: Dict[str, Dict[str, Any]] = {}
         self.load_keys()
         self.ensure_default_keys()
@@ -39,8 +42,11 @@ class ApiKeyManager:
             self.keys = {}
 
     def save_keys(self):
-        with open(KEYS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(self.keys, f, ensure_ascii=False, indent=2)
+        try:
+            with open(KEYS_FILE, 'w', encoding='utf-8') as f:
+                json.dump(self.keys, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
 
     def ensure_default_keys(self):
         # Dọn dẹp key placeholder cũ nếu có

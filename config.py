@@ -25,6 +25,12 @@ ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 HEYGEN_API_KEY = os.getenv("HEYGEN_API_KEY", "")
 
 # --- DATA / STORAGE PATHS ---
-DATA_DIR = os.path.join(BASE_DIR, "data")
-STORAGE_DIR = os.path.join(BASE_DIR, "storage")
+if os.getenv("VERCEL"):
+    DATA_DIR = "/tmp/data"
+    STORAGE_DIR = "/tmp/storage"
+    os.makedirs(DATA_DIR, exist_ok=True)
+    os.makedirs(STORAGE_DIR, exist_ok=True)
+else:
+    DATA_DIR = os.getenv("DATA_DIR", os.path.join(BASE_DIR, "data"))
+    STORAGE_DIR = os.getenv("STORAGE_DIR", os.path.join(BASE_DIR, "storage"))
 

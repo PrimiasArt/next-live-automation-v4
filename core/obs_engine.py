@@ -11,7 +11,9 @@ class HLCEngine:
         self.cl = None
         self.last_video = None
         self.running = True
-        self.connect_obs()
+        import os
+        if not os.getenv("VERCEL"):
+            self.connect_obs()
 
     def connect_obs(self, auto_launch: bool = True):
         try:
@@ -22,14 +24,19 @@ class HLCEngine:
             state.add_log("PROCESSOR", f"✅ Đã kết nối Stream Processor Engine tại {OBS_HOST}:{OBS_PORT}")
             return True
         except Exception as e:
-            if auto_launch:
-                from core.stream_process_manager import process_manager
-                is_running, _ = process_manager.get_process_info()
-                if not is_running:
-                    state.add_log("PROCESSOR", "⚙️ Stream Processor chưa chạy -> Đang tự động kích hoạt ngầm...")
-                    res = process_manager.start_processor(minimize_to_tray=True)
-                    if res.get("success"):
-                        return self.connect_obs(auto_launch=False)
+            import sys
+            import os
+            if auto_launch and sys.platform == "win32" and not os.getenv("VERCEL"):
+                try:
+                    from core.stream_process_manager import process_manager
+                    is_running, _ = process_manager.get_process_info()
+                    if not is_running:
+                        state.add_log("PROCESSOR", "⚙️ Stream Processor chưa chạy -> Đang tự động kích hoạt ngầm...")
+                        res = process_manager.start_processor(minimize_to_tray=True)
+                        if res.get("success"):
+                            return self.connect_obs(auto_launch=False)
+                except Exception:
+                    pass
             state.add_log("PROCESSOR", f"❌ Không thể kết nối tới Stream Processor Engine: {str(e)}")
             self.cl = None
             return False
