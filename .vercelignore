@@ -20,6 +20,6 @@ scratch/
 *.log
 storage/users/
 
-# Root static HTML fallback (keep for GitHub Pages in docs/, but ignore at root for Vercel)
-index.html
+# Root static HTML fallback (keep for GitHub Pages in docs/, preserve web/templates/index.html for Vercel)
+/index.html
 

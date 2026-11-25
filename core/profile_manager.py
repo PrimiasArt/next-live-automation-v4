@@ -37,7 +37,10 @@ def get_file_duration_cv2(file_path: str):
 class ProfileManager:
     def __init__(self, profiles_dir: str = PROFILES_DIR):
         self.profiles_dir = profiles_dir
-        os.makedirs(self.profiles_dir, exist_ok=True)
+        try:
+            os.makedirs(self.profiles_dir, exist_ok=True)
+        except Exception:
+            pass
 
     def list_profiles(self) -> list:
         profiles = []

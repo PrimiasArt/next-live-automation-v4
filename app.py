@@ -5,8 +5,10 @@ CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 if CURRENT_DIR not in sys.path:
     sys.path.insert(0, CURRENT_DIR)
 
-# If running on Vercel Serverless, configure /tmp for writable data and storage
-if os.getenv("VERCEL"):
+from config import IS_VERCEL
+
+# If running on Vercel Serverless, configure /tmp for writable data, storage and profiles
+if IS_VERCEL or os.getenv("VERCEL"):
     import shutil
     tmp_data = "/tmp/data"
     os.makedirs(tmp_data, exist_ok=True)
@@ -37,6 +39,19 @@ if os.getenv("VERCEL"):
                         shutil.copy2(s, d)
                     except Exception:
                         pass
+
+    tmp_profiles = "/tmp/profiles"
+    os.makedirs(tmp_profiles, exist_ok=True)
+    profiles_src = os.path.join(CURRENT_DIR, "profiles")
+    if os.path.exists(profiles_src):
+        for item in os.listdir(profiles_src):
+            s = os.path.join(profiles_src, item)
+            d = os.path.join(tmp_profiles, item)
+            if os.path.isfile(s) and not os.path.exists(d):
+                try:
+                    shutil.copy2(s, d)
+                except Exception:
+                    pass
 
 from web.app import create_app
 

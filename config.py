@@ -15,9 +15,15 @@ SUPABASE_ANON_KEY = os.getenv(
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZycmVkcGRqZm1hZmx1YWZrcm1yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Mzk1NTAsImV4cCI6MjA5NDMxNTU1MH0.Rxd8dz_hZxZjqn6uyoStofhMtA2tEKFVxpsQa3e59Xo"
 )
 
-# --- THƯ MỤC LƯU TRỮ PROFILES ---
+# --- THƯ MỤC GỐC & SERVERLESS CHECK ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PROFILES_DIR = os.path.join(BASE_DIR, "profiles")
+IS_VERCEL = bool(
+    os.getenv("VERCEL")
+    or os.getenv("VERCEL_ENV")
+    or os.getenv("AWS_LAMBDA_FUNCTION_NAME")
+    or os.getenv("LAMBDA_TASK_ROOT")
+    or not os.access(BASE_DIR, os.W_OK)
+)
 
 # --- CẤU HÌNH WEB SERVER ---
 WEB_HOST = "0.0.0.0"
@@ -27,13 +33,15 @@ WEB_PORT = 5000
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 HEYGEN_API_KEY = os.getenv("HEYGEN_API_KEY", "")
 
-# --- DATA / STORAGE PATHS ---
-if os.getenv("VERCEL"):
-    DATA_DIR = "/tmp/data"
-    STORAGE_DIR = "/tmp/storage"
-    os.makedirs(DATA_DIR, exist_ok=True)
-    os.makedirs(STORAGE_DIR, exist_ok=True)
+# --- DATA / STORAGE / PROFILES PATHS ---
+if IS_VERCEL:
+    DATA_DIR = os.getenv("DATA_DIR", "/tmp/data")
+    STORAGE_DIR = os.getenv("STORAGE_DIR", "/tmp/storage")
+    PROFILES_DIR = os.getenv("PROFILES_DIR", "/tmp/profiles")
+    for _d in (DATA_DIR, STORAGE_DIR, PROFILES_DIR):
+        os.makedirs(_d, exist_ok=True)
 else:
     DATA_DIR = os.getenv("DATA_DIR", os.path.join(BASE_DIR, "data"))
     STORAGE_DIR = os.getenv("STORAGE_DIR", os.path.join(BASE_DIR, "storage"))
+    PROFILES_DIR = os.getenv("PROFILES_DIR", os.path.join(BASE_DIR, "profiles"))
 

@@ -18,13 +18,15 @@ class HLCEngine:
         self._last_fail_log_ts = 0.0
         self._connect_cooldown_sec = 8.0
         import os
-        if not os.getenv("VERCEL") and not os.getenv("DISABLE_OBS_AUTOSTART"):
+        from config import IS_VERCEL
+        if not IS_VERCEL and not os.getenv("VERCEL") and not os.getenv("DISABLE_OBS_AUTOSTART"):
             self.connect_obs(auto_launch=False)
 
     def start_background_loop(self) -> bool:
         """Khởi chạy vòng lặp tự động phát video trên luồng nền (đảm bảo chỉ chạy 1 lần)."""
         import os
-        if os.getenv("VERCEL") or os.getenv("DISABLE_OBS_LOOP"):
+        from config import IS_VERCEL
+        if IS_VERCEL or os.getenv("VERCEL") or os.getenv("DISABLE_OBS_LOOP"):
             return False
         with self._loop_lock:
             if self._loop_thread and self._loop_thread.is_alive():
