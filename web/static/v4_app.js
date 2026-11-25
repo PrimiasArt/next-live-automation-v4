@@ -2506,6 +2506,8 @@ async function submitGenerateAIVideo() {
         if (data.success && data.task) {
             loadUserCredits();
             showTaskProgress(data.task);
+            csSaveLocalVideo(data.task);
+            csLoadRecentTasks();
             if (data.task.status === 'completed') {
                 onAIVideoCompleted(data.task);
             } else {
@@ -2541,22 +2543,52 @@ function csGetLocalVideos() {
     }
 }
 
+function _csTaskRank(status) {
+    const rank = { queued: 0, synthesizing_audio: 1, rendering_video: 1, downloading: 2, completed: 3, failed: 3 };
+    return rank[status] || 0;
+}
+
+function _csMergeTaskRecord(a, b) {
+    if (!a) return b;
+    if (!b) return a;
+    const rankA = _csTaskRank(a.status);
+    const rankB = _csTaskRank(b.status);
+    const primary = (rankB > rankA) ? b : a;
+    const secondary = (primary === a) ? b : a;
+    return {
+        ...secondary,
+        ...primary,
+        title: primary.title || secondary.title || primary.video_filename || 'Video MC Bán Hàng',
+        video_filename: primary.video_filename || secondary.video_filename || '',
+        video_url: primary.video_url || secondary.video_url || '',
+        remote_video_url: primary.remote_video_url || secondary.remote_video_url || '',
+        heygen_video_id: primary.heygen_video_id || secondary.heygen_video_id || '',
+        created_at: secondary.created_at || primary.created_at || '',
+        completed_at: primary.completed_at || secondary.completed_at || '',
+        error: primary.error || secondary.error || ''
+    };
+}
+
 function csSaveLocalVideo(task) {
-    if (!task || !task.video_filename) return;
+    if (!task || !task.task_id) return;
     try {
-        const list = csGetLocalVideos().filter(x => x.task_id !== task.task_id && x.video_filename !== task.video_filename);
-        list.unshift({
-            task_id: task.task_id || ('cs_' + Date.now()),
-            title: task.title || task.video_filename,
-            video_filename: task.video_filename,
+        const list = csGetLocalVideos();
+        const prev = list.find(x => x.task_id === task.task_id);
+        const merged = _csMergeTaskRecord(prev, {
+            task_id: task.task_id,
+            title: task.title || task.video_filename || '',
+            video_filename: task.video_filename || '',
             video_url: task.video_url || '',
             remote_video_url: task.remote_video_url || '',
             heygen_video_id: task.heygen_video_id || '',
-            status: 'completed',
+            status: task.status || 'completed',
+            error: task.error || '',
             created_at: task.created_at || new Date().toISOString().slice(0, 19).replace('T', ' '),
-            completed_at: task.completed_at || new Date().toISOString().slice(0, 19).replace('T', ' ')
+            completed_at: task.completed_at || ''
         });
-        localStorage.setItem(csLocalVideosKey(), JSON.stringify(list.slice(0, 20)));
+        const rest = list.filter(x => x.task_id !== task.task_id);
+        rest.unshift(merged);
+        localStorage.setItem(csLocalVideosKey(), JSON.stringify(rest.slice(0, 20)));
     } catch (e) {}
 }
 
@@ -2583,7 +2615,7 @@ function csStartTaskPolling(taskOrId) {
         title: initialTask.title || ''
     };
 
-    csActivePollInterval = setInterval(async () => {
+    const pollOnce = async () => {
         try {
             const qs = new URLSearchParams();
             if (pollMeta.hgVideoId) qs.set('hg_video_id', pollMeta.hgVideoId);
@@ -2596,6 +2628,7 @@ function csStartTaskPolling(taskOrId) {
                 const t = data.task;
                 if (t.heygen_video_id) pollMeta.hgVideoId = t.heygen_video_id;
                 if (t.video_filename) pollMeta.filename = t.video_filename;
+                csSaveLocalVideo(t);
                 showTaskProgress(t);
                 if (t.status === 'completed') {
                     clearInterval(csActivePollInterval);
@@ -2605,11 +2638,14 @@ function csStartTaskPolling(taskOrId) {
                     clearInterval(csActivePollInterval);
                     csActivePollInterval = null;
                     loadUserCredits();
+                    csLoadRecentTasks();
                     showToast('Render video thất bại: ' + (t.error || 'Lỗi không xác định'), 'error');
                 }
             }
         } catch (e) {}
-    }, 3000);
+    };
+
+    csActivePollInterval = setInterval(pollOnce, 3000);
 }
 
 function onAIVideoCompleted(task) {
@@ -2669,11 +2705,18 @@ async function csLoadRecentTasks() {
         const res = await fetch('/api/content-studio/tasks', { headers: getAuthHeaders() });
         const data = await res.json();
         const serverTasks = (data.success && Array.isArray(data.tasks)) ? data.tasks : [];
-        const seen = new Set(serverTasks.map(t => t.task_id));
-        const merged = [...serverTasks];
-        csGetLocalVideos().forEach(lt => {
-            if (!seen.has(lt.task_id)) merged.push(lt);
+        const byId = new Map();
+        serverTasks.forEach(t => {
+            if (t && t.task_id) byId.set(t.task_id, t);
         });
+        csGetLocalVideos().forEach(lt => {
+            if (!lt || !lt.task_id) return;
+            const prev = byId.get(lt.task_id);
+            byId.set(lt.task_id, _csMergeTaskRecord(prev, lt));
+        });
+        const merged = Array.from(byId.values()).sort((a, b) =>
+            String(b.created_at || '').localeCompare(String(a.created_at || ''))
+        );
 
         _csRecentTasksMap = {};
         if (merged.length === 0) {
@@ -2681,12 +2724,16 @@ async function csLoadRecentTasks() {
             return;
         }
         let html = '';
+        let pendingAutoPoll = null;
         merged.slice(0, 6).forEach(t => {
             _csRecentTasksMap[t.task_id] = t;
             const isDone = (t.status === 'completed');
             const isFail = (t.status === 'failed');
             const safeTid = escapeHtml(t.task_id);
             const safeFname = escapeHtml(t.video_filename || '');
+            if (!isDone && !isFail && t.heygen_video_id && !pendingAutoPoll) {
+                pendingAutoPoll = t;
+            }
             html += `
                 <div class="p-3 rounded-xl border border-[var(--border-subtle)] saas-surface flex items-center justify-between gap-2">
                     <div class="truncate space-y-0.5">
@@ -2697,20 +2744,33 @@ async function csLoadRecentTasks() {
                         <div class="text-xs text-[var(--text-muted)] font-mono tabular-nums">${escapeHtml(t.created_at || '')}</div>
                     </div>
                     <div class="flex items-center gap-1.5 shrink-0">
-                        ${isDone && t.video_filename ? `
+                        ${isDone && (t.video_filename || t.remote_video_url || t.video_url) ? `
                             <button type="button" data-tid="${safeTid}" onclick="csPreviewTask(this.dataset.tid)" class="px-2.5 py-1 rounded-lg saas-card hover:bg-[var(--bg-elevated)] text-[var(--text-main)] font-semibold text-xs cursor-pointer">
                                 ▶ Xem
                             </button>
+                            ${t.video_filename ? `
                             <button type="button" data-fname="${safeFname}" onclick="pushVideoToOBSDirect(this.dataset.fname)" class="px-2.5 py-1 rounded-lg bg-sky-500/15 hover:bg-sky-500 text-sky-400 hover:text-white border border-sky-500/30 font-semibold text-xs cursor-pointer" title="Nạp vào OBS">
                                 🎛️ OBS
                             </button>
-                        ` : (isFail ? `<span class="text-xs text-rose-400 font-mono">Lỗi</span>` : `<span class="text-xs text-amber-400 font-mono">Đang render</span>`)}
+                            ` : ''}
+                        ` : (isFail ? `<span class="text-xs text-rose-400 font-mono" title="${escapeHtml(t.error || '')}">Lỗi</span>` : (t.heygen_video_id ? `<button type="button" data-tid="${safeTid}" onclick="csResumePendingTask(this.dataset.tid)" class="px-2 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 font-mono text-xs cursor-pointer">⏳ Kiểm tra</button>` : `<span class="text-xs text-amber-400 font-mono">Đang render</span>`))}
                     </div>
                 </div>
             `;
         });
         listEl.innerHTML = html;
+        if (pendingAutoPoll && !csActivePollInterval) {
+            csStartTaskPolling(pendingAutoPoll);
+        }
     } catch (e) {}
+}
+
+function csResumePendingTask(taskId) {
+    const t = _csRecentTasksMap[taskId];
+    if (!t) return;
+    showTaskProgress(t);
+    csStartTaskPolling(t);
+    showToast('Đang kiểm tra trạng thái video trên HeyGen Cloud...', 'info');
 }
 
 function csPreviewTask(taskId) {

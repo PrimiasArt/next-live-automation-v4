@@ -421,23 +421,15 @@ class ContentStudioEngine:
 
         # 2. Chỉ tổng hợp mẫu TTS nếu có ElevenLabs API Key hợp lệ và không có preview_url
         if el_key:
-            try:
-                el_url = f"{ELEVENLABS_API_BASE}/text-to-speech/{voice_id}"
-                el_res = requests.post(
-                    el_url,
-                    headers={"xi-api-key": el_key, "Content-Type": "application/json"},
-                    json={
-                        "text": "Xin chào! Đây là bản nghe thử giọng đọc trực tiếp từ ElevenLabs API.",
-                        "model_id": "eleven_multilingual_v2"
-                    },
-                    timeout=15
-                )
-                if el_res.status_code == 200 and len(el_res.content) > 512:
-                    with open(sample_path, 'wb') as f:
-                        f.write(el_res.content)
-                    return sample_path
-            except Exception as e:
-                print(f"Lỗi TTS preview ElevenLabs ({voice_id}): {e}")
+            ok, _ = self._synthesize_elevenlabs_audio(
+                "Xin chào! Đây là bản nghe thử giọng đọc trực tiếp từ ElevenLabs API.",
+                voice_id,
+                sample_path,
+                el_key,
+                language_code="vi",
+            )
+            if ok and os.path.exists(sample_path):
+                return sample_path
 
         return None
 
@@ -1008,39 +1000,75 @@ class ContentStudioEngine:
         except Exception as e:
             return None, f"Lỗi tải asset lên HeyGen: {str(e)}"
 
-    def _synthesize_elevenlabs_audio(self, script: str, voice_id: str, audio_path: str, el_key: str) -> tuple[bool, Optional[str]]:
+    def _detect_tts_language(self, text: str, voice_id: Optional[str] = None) -> Optional[str]:
+        if re.search(r"[àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđÀÁẢÃẠĂẰẮẲẴẶÂẦẤẨẪẬÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ]", text or ""):
+            return "vi"
+        if voice_id and self._voices_cache:
+            for v in self._voices_cache:
+                if v.get("id") == voice_id:
+                    langs = [str(x).lower() for x in (v.get("languages") or [])]
+                    accent = str(v.get("accent") or "").lower()
+                    if "vi" in langs or accent.startswith("vi"):
+                        return "vi"
+                    if len(langs) == 1 and langs[0]:
+                        return langs[0]
+                    break
+        return None
+
+    def _synthesize_elevenlabs_audio(
+        self,
+        script: str,
+        voice_id: str,
+        audio_path: str,
+        el_key: str,
+        language_code: Optional[str] = None,
+    ) -> tuple[bool, Optional[str]]:
         if not el_key:
             return False, "Chưa cấu hình ElevenLabs API Key"
-        try:
-            el_url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
-            el_payload = {
-                "text": script,
-                "model_id": "eleven_multilingual_v2",
-                "voice_settings": {
-                    "stability": 0.5,
-                    "similarity_boost": 0.75,
-                    "style": 0.2,
-                    "use_speaker_boost": True
-                }
+        el_url = f"{ELEVENLABS_API_BASE}/text-to-speech/{voice_id}"
+        lang_code = language_code or self._detect_tts_language(script, voice_id=voice_id)
+        models_to_try = ("eleven_v3", "eleven_flash_v2_5")
+        last_err = None
+
+        for model_id in models_to_try:
+            voice_settings: Dict[str, Any] = {
+                "stability": 0.5,
+                "similarity_boost": 0.75,
             }
-            el_res = requests.post(
-                el_url,
-                headers={"xi-api-key": el_key, "Content-Type": "application/json"},
-                json=el_payload,
-                timeout=30
-            )
-            if el_res.status_code == 200 and len(el_res.content) > 512:
-                with open(audio_path, "wb") as f:
-                    f.write(el_res.content)
-                state.add_log("STUDIO", f"✅ [VOICE-AI] Đã tạo file audio thành công: {os.path.basename(audio_path)}")
-                return True, None
-            err = f"ElevenLabs ({el_res.status_code}): {self._extract_elevenlabs_error(el_res)}"
-            state.add_log("STUDIO", f"⚠️ [VOICE-AI] {err}")
-            return False, err
-        except Exception as e:
-            err = f"Lỗi kết nối ElevenLabs: {str(e)}"
-            state.add_log("STUDIO", f"⚠️ [VOICE-AI] {err}")
-            return False, err
+            if model_id != "eleven_v3":
+                voice_settings["style"] = 0.2
+                voice_settings["use_speaker_boost"] = True
+            el_payload: Dict[str, Any] = {
+                "text": script,
+                "model_id": model_id,
+                "voice_settings": voice_settings,
+            }
+            if lang_code:
+                el_payload["language_code"] = lang_code
+
+            try:
+                el_res = requests.post(
+                    el_url,
+                    headers={"xi-api-key": el_key, "Content-Type": "application/json"},
+                    json=el_payload,
+                    timeout=30,
+                )
+                if el_res.status_code == 200 and len(el_res.content) > 512:
+                    with open(audio_path, "wb") as f:
+                        f.write(el_res.content)
+                    state.add_log("STUDIO", f"✅ [VOICE-AI] Đã tạo file audio ({model_id}, lang={lang_code or 'auto'}): {os.path.basename(audio_path)}")
+                    return True, None
+                last_err = f"ElevenLabs ({el_res.status_code}): {self._extract_elevenlabs_error(el_res)}"
+                if el_res.status_code in (400, 403, 422):
+                    continue
+                break
+            except Exception as e:
+                last_err = f"Lỗi kết nối ElevenLabs: {str(e)}"
+                break
+
+        err = last_err or "Không thể tạo giọng đọc ElevenLabs"
+        state.add_log("STUDIO", f"⚠️ [VOICE-AI] {err}")
+        return False, err
 
     def _submit_heygen_video(
         self,
@@ -1246,6 +1274,15 @@ class ContentStudioEngine:
         el_err = None
         if el_key:
             has_real_audio, el_err = self._synthesize_elevenlabs_audio(script, voice_id, audio_path, el_key)
+            if not has_real_audio:
+                err_msg = el_err or "ElevenLabs không tạo được giọng đọc cho kịch bản này"
+                self._update_task(task_id, {
+                    "status": "failed",
+                    "progress_pct": 100,
+                    "current_step": f"❌ {err_msg}",
+                    "error": err_msg,
+                })
+                return
 
         if hg_key:
             hg_video_id, hg_err = self._submit_heygen_video(
@@ -1336,7 +1373,9 @@ class ContentStudioEngine:
 
             has_real_audio = False
             if el_key:
-                has_real_audio, _ = self._synthesize_elevenlabs_audio(script, voice_id, audio_path, el_key)
+                has_real_audio, el_err = self._synthesize_elevenlabs_audio(script, voice_id, audio_path, el_key)
+                if not has_real_audio:
+                    raise Exception(el_err or "ElevenLabs không tạo được giọng đọc cho kịch bản này")
 
             self._update_task(task_id, {
                 "status": "rendering_video",
