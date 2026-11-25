@@ -191,8 +191,8 @@ class ContentStudioEngine:
 
     def get_api_keys(self) -> Dict[str, str]:
         return {
-            "elevenlabs": self.settings.get("elevenlabs_api_key") or os.getenv("ELEVENLABS_API_KEY", ""),
-            "heygen": self.settings.get("heygen_api_key") or os.getenv("HEYGEN_API_KEY", "")
+            "elevenlabs": (self.settings.get("elevenlabs_api_key") or os.getenv("ELEVENLABS_API_KEY") or os.getenv("XI_API_KEY") or "").strip(),
+            "heygen": (self.settings.get("heygen_api_key") or os.getenv("HEYGEN_API_KEY") or "").strip()
         }
 
     def _invalidate_voices_cache(self):
@@ -879,6 +879,7 @@ class ContentStudioEngine:
         task_id = f"cs_{uuid.uuid4().hex[:10]}"
         safe_title = re.sub(r'[^a-zA-Z0-9_\- ]', '', title).strip().replace(' ', '_') or "ai_video"
         
+        final_video_filename = f"AI_{safe_title}_{task_id[:6]}.mp4"
         task_info = {
             "task_id": task_id,
             "user_id": user_id,
@@ -891,8 +892,10 @@ class ContentStudioEngine:
             "status": "queued",
             "progress_pct": 5,
             "current_step": "Đang xếp hàng chờ xử lý kịch bản...",
-            "video_filename": None,
+            "video_filename": final_video_filename,
             "video_url": None,
+            "remote_video_url": None,
+            "heygen_video_id": None,
             "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
             "completed_at": None,
             "error": None
@@ -902,7 +905,13 @@ class ContentStudioEngine:
             self.tasks[task_id] = task_info
             self.save_tasks()
 
-        # Khởi chạy Background Thread xử lý render
+        if os.getenv("VERCEL"):
+            # Trên Vercel Serverless, chạy đồng bộ bước tạo audio + gửi lệnh HeyGen trước khi trả HTTP response
+            # để tránh container bị đóng băng trước khi gửi job sang HeyGen.
+            self._prepare_and_submit_serverless(task_id)
+            return self.get_task(task_id) or task_info
+
+        # Trên máy local / VPS Docker, chạy background thread toàn bộ quy trình
         thread = threading.Thread(target=self._run_render_pipeline, args=(task_id,), daemon=True)
         thread.start()
 
@@ -924,6 +933,377 @@ class ContentStudioEngine:
                 self.tasks[task_id].update(updates)
                 self.save_tasks()
 
+    def _resolve_avatar_local_file(self, avatar_id: Optional[str], user_id: Optional[str] = None) -> Optional[str]:
+        if not avatar_id:
+            return None
+        av_info = self.get_avatar_by_id(avatar_id, user_id=user_id)
+        if not av_info:
+            return None
+        local_f = (av_info.get("local_file") or "").strip()
+        candidates = []
+        if local_f:
+            candidates.append(local_f)
+            base_name = os.path.basename(local_f.replace("\\", "/"))
+            if base_name:
+                candidates.append(os.path.join(self.system_avatars_dir, base_name))
+                if user_id:
+                    candidates.append(os.path.join(STORAGE_DIR, "users", user_id, "avatars", base_name))
+        preview_img = (av_info.get("preview_img") or "").strip()
+        if preview_img:
+            p_base = os.path.basename(preview_img.split("?")[0])
+            if p_base:
+                candidates.append(os.path.join(self.system_avatars_dir, p_base))
+                if user_id:
+                    candidates.append(os.path.join(STORAGE_DIR, "users", user_id, "avatars", p_base))
+        for path in candidates:
+            if path and os.path.exists(path) and os.path.isfile(path):
+                return path
+        return None
+
+    def _extract_heygen_error(self, resp) -> str:
+        try:
+            j = resp.json()
+            if isinstance(j, dict):
+                err = j.get("error")
+                if isinstance(err, dict) and err.get("message"):
+                    return err["message"]
+                if isinstance(err, str) and err:
+                    return err
+                if j.get("message"):
+                    return str(j["message"])
+        except Exception:
+            pass
+        return (resp.text or "")[:180] or f"HTTP {resp.status_code}"
+
+    def _upload_asset_to_heygen(self, filepath: str, hg_key: str) -> tuple[Optional[str], Optional[str]]:
+        if not filepath or not os.path.exists(filepath):
+            return None, "File nguồn không tồn tại để tải lên HeyGen"
+        ext = os.path.splitext(filepath)[1].lower()
+        mime_map = {
+            ".mp3": "audio/mpeg",
+            ".wav": "audio/wav",
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".webp": "image/webp",
+            ".mp4": "video/mp4",
+        }
+        mime_type = mime_map.get(ext, "application/octet-stream")
+        try:
+            with open(filepath, "rb") as f:
+                res = requests.post(
+                    "https://api.heygen.com/v3/assets",
+                    headers={"X-Api-Key": hg_key},
+                    files={"file": (os.path.basename(filepath), f, mime_type)},
+                    timeout=30,
+                )
+            if res.status_code in (200, 201):
+                body = res.json() if res.content else {}
+                data = body.get("data", {}) if isinstance(body, dict) else {}
+                asset_id = (data.get("asset_id") or data.get("id") or "") if isinstance(data, dict) else ""
+                if asset_id:
+                    return asset_id, None
+                return None, f"HeyGen không trả asset_id ({res.text[:140]})"
+            return None, f"HeyGen Asset ({res.status_code}): {self._extract_heygen_error(res)}"
+        except Exception as e:
+            return None, f"Lỗi tải asset lên HeyGen: {str(e)}"
+
+    def _synthesize_elevenlabs_audio(self, script: str, voice_id: str, audio_path: str, el_key: str) -> tuple[bool, Optional[str]]:
+        if not el_key:
+            return False, "Chưa cấu hình ElevenLabs API Key"
+        try:
+            el_url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+            el_payload = {
+                "text": script,
+                "model_id": "eleven_multilingual_v2",
+                "voice_settings": {
+                    "stability": 0.5,
+                    "similarity_boost": 0.75,
+                    "style": 0.2,
+                    "use_speaker_boost": True
+                }
+            }
+            el_res = requests.post(
+                el_url,
+                headers={"xi-api-key": el_key, "Content-Type": "application/json"},
+                json=el_payload,
+                timeout=30
+            )
+            if el_res.status_code == 200 and len(el_res.content) > 512:
+                with open(audio_path, "wb") as f:
+                    f.write(el_res.content)
+                state.add_log("STUDIO", f"✅ [VOICE-AI] Đã tạo file audio thành công: {os.path.basename(audio_path)}")
+                return True, None
+            err = f"ElevenLabs ({el_res.status_code}): {self._extract_elevenlabs_error(el_res)}"
+            state.add_log("STUDIO", f"⚠️ [VOICE-AI] {err}")
+            return False, err
+        except Exception as e:
+            err = f"Lỗi kết nối ElevenLabs: {str(e)}"
+            state.add_log("STUDIO", f"⚠️ [VOICE-AI] {err}")
+            return False, err
+
+    def _submit_heygen_video(
+        self,
+        title: str,
+        script: str,
+        voice_id: str,
+        avatar_id: str,
+        aspect_ratio: str,
+        user_id: str,
+        audio_path: Optional[str],
+        has_real_audio: bool,
+        hg_key: str,
+    ) -> tuple[Optional[str], Optional[str]]:
+        if not hg_key:
+            return None, "Chưa cấu hình HeyGen API Key"
+
+        audio_asset_id = None
+        if has_real_audio and audio_path and os.path.exists(audio_path):
+            audio_asset_id, audio_err = self._upload_asset_to_heygen(audio_path, hg_key)
+            if audio_err:
+                state.add_log("STUDIO", f"⚠️ [MC-AI] Upload audio ElevenLabs lên HeyGen thất bại: {audio_err}")
+                return None, audio_err
+
+        avatar_img_path = self._resolve_avatar_local_file(avatar_id, user_id=user_id)
+        aspect = aspect_ratio if aspect_ratio in ("9:16", "16:9") else "9:16"
+
+        if avatar_img_path:
+            img_asset_id, img_err = self._upload_asset_to_heygen(avatar_img_path, hg_key)
+            if img_err:
+                state.add_log("STUDIO", f"⚠️ [MC-AI] Upload ảnh người mẫu lên HeyGen thất bại: {img_err}")
+                return None, img_err
+            hg_payload: Dict[str, Any] = {
+                "type": "image",
+                "image": {"type": "asset_id", "asset_id": img_asset_id},
+                "title": title,
+                "aspect_ratio": aspect,
+            }
+        else:
+            hg_payload = {
+                "type": "avatar",
+                "avatar_id": avatar_id,
+                "title": title,
+                "aspect_ratio": aspect,
+                "background": {"value": "#0b0f19"},
+            }
+
+        if audio_asset_id:
+            hg_payload["audio_asset_id"] = audio_asset_id
+        else:
+            hg_payload["script"] = script
+            if hg_payload["type"] == "avatar" and voice_id:
+                hg_payload["voice_id"] = voice_id
+
+        try:
+            hg_res = requests.post(
+                "https://api.heygen.com/v3/videos",
+                headers={"X-Api-Key": hg_key, "Content-Type": "application/json"},
+                json=hg_payload,
+                timeout=30,
+            )
+            if hg_res.status_code in (200, 201, 202):
+                res_data = hg_res.json() if hg_res.content else {}
+                v_info = res_data.get("data", {}) if isinstance(res_data, dict) else {}
+                video_id = v_info.get("video_id") or v_info.get("id")
+                if video_id:
+                    return video_id, None
+                return None, f"HeyGen không trả video_id ({hg_res.text[:140]})"
+            err = f"HeyGen Video ({hg_res.status_code}): {self._extract_heygen_error(hg_res)}"
+            state.add_log("STUDIO", f"⚠️ [MC-AI] {err}")
+            return None, err
+        except Exception as e:
+            err = f"Lỗi kết nối HeyGen: {str(e)}"
+            state.add_log("STUDIO", f"⚠️ [MC-AI] {err}")
+            return None, err
+
+    def poll_heygen_video_once(
+        self,
+        task_id: str,
+        hg_video_id: str,
+        user_id: str,
+        title: str = "",
+        final_video_filename: str = "",
+    ) -> Dict[str, Any]:
+        """Kiểm tra trạng thái render 1 lần từ HeyGen v3 (dùng cho Serverless stateless polling)."""
+        hg_key = self.get_api_keys().get("heygen", "")
+        task = self.get_task(task_id)
+        if not task:
+            safe_fn = os.path.basename(final_video_filename) if final_video_filename else f"AI_studio_{task_id[:6]}.mp4"
+            task = {
+                "task_id": task_id,
+                "user_id": user_id,
+                "title": title or "Video MC Bán Hàng",
+                "status": "rendering_video",
+                "progress_pct": 55,
+                "current_step": "🎬 Đang kết xuất video trên HeyGen Cloud...",
+                "video_filename": safe_fn,
+                "video_url": None,
+                "remote_video_url": None,
+                "heygen_video_id": hg_video_id,
+                "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "completed_at": None,
+                "error": None,
+            }
+            with self.lock:
+                self.tasks[task_id] = task
+
+        if not hg_key:
+            return task
+
+        try:
+            status_res = requests.get(
+                f"https://api.heygen.com/v3/videos/{hg_video_id}",
+                headers={"X-Api-Key": hg_key},
+                timeout=15,
+            )
+            if status_res.status_code != 200:
+                return task
+
+            s_data = status_res.json().get("data", {}) if status_res.content else {}
+            v_status = (s_data.get("status") or "").lower()
+            if v_status == "completed":
+                download_url = s_data.get("video_url")
+                if not download_url:
+                    self._update_task(task_id, {
+                        "status": "failed",
+                        "progress_pct": 100,
+                        "current_step": "❌ HeyGen hoàn tất nhưng không trả video_url.",
+                        "error": "HeyGen không trả video_url",
+                    })
+                    return self.get_task(task_id) or task
+
+                fname = task.get("video_filename") or f"AI_studio_{task_id[:6]}.mp4"
+                user_media_dir = os.path.join(STORAGE_DIR, "users", user_id, "media")
+                os.makedirs(user_media_dir, exist_ok=True)
+                final_video_path = os.path.join(user_media_dir, fname)
+
+                saved_local = False
+                try:
+                    dl_res = requests.get(download_url, timeout=60)
+                    if dl_res.status_code == 200 and len(dl_res.content) > 1024:
+                        with open(final_video_path, "wb") as vf:
+                            vf.write(dl_res.content)
+                        saved_local = True
+                except Exception:
+                    pass
+
+                is_vercel = bool(os.getenv("VERCEL"))
+                play_url = download_url if (is_vercel or not saved_local) else f"/api/media/file/{fname}"
+                self._update_task(task_id, {
+                    "status": "completed",
+                    "progress_pct": 100,
+                    "current_step": "🎉 Hoàn tất! Video đã sẵn sàng phát sóng.",
+                    "video_filename": fname,
+                    "video_url": play_url,
+                    "remote_video_url": download_url,
+                    "heygen_video_id": hg_video_id,
+                    "completed_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                })
+            elif v_status == "failed":
+                err_val = s_data.get("error") or "MC video render failed"
+                if isinstance(err_val, dict):
+                    err_val = err_val.get("message") or str(err_val)
+                self._update_task(task_id, {
+                    "status": "failed",
+                    "progress_pct": 100,
+                    "current_step": f"❌ HeyGen render thất bại: {err_val}",
+                    "error": str(err_val),
+                })
+            else:
+                cur_pct = min(90, max(55, int(task.get("progress_pct", 50)) + 4))
+                self._update_task(task_id, {
+                    "status": "rendering_video",
+                    "progress_pct": cur_pct,
+                    "current_step": f"🎬 HeyGen đang render video MC AI ({cur_pct}%)...",
+                    "heygen_video_id": hg_video_id,
+                })
+        except Exception:
+            pass
+
+        return self.get_task(task_id) or task
+
+    def _prepare_and_submit_serverless(self, task_id: str):
+        task = self.get_task(task_id)
+        if not task:
+            return
+        user_id = task["user_id"]
+        script = task["script"]
+        voice_id = task["voice_id"]
+        avatar_id = task["avatar_id"]
+        aspect_ratio = task.get("aspect_ratio", "9:16")
+
+        keys = self.get_api_keys()
+        el_key = keys.get("elevenlabs")
+        hg_key = keys.get("heygen")
+
+        user_media_dir = os.path.join(STORAGE_DIR, "users", user_id, "media")
+        os.makedirs(user_media_dir, exist_ok=True)
+        audio_path = os.path.join(user_media_dir, f"{task['safe_title']}_{task_id[:6]}.mp3")
+        final_video_filename = task["video_filename"]
+        final_video_path = os.path.join(user_media_dir, final_video_filename)
+
+        has_real_audio = False
+        el_err = None
+        if el_key:
+            has_real_audio, el_err = self._synthesize_elevenlabs_audio(script, voice_id, audio_path, el_key)
+
+        if hg_key:
+            hg_video_id, hg_err = self._submit_heygen_video(
+                title=task["title"],
+                script=script,
+                voice_id=voice_id,
+                avatar_id=avatar_id,
+                aspect_ratio=aspect_ratio,
+                user_id=user_id,
+                audio_path=audio_path,
+                has_real_audio=has_real_audio,
+                hg_key=hg_key,
+            )
+            if hg_video_id:
+                self._update_task(task_id, {
+                    "status": "rendering_video",
+                    "progress_pct": 50,
+                    "heygen_video_id": hg_video_id,
+                    "current_step": "🎬 Đã gửi audio & người mẫu sang HeyGen Cloud, đang chờ render...",
+                })
+                return
+            err_msg = hg_err or "Không thể gửi yêu cầu render sang HeyGen"
+            self._update_task(task_id, {
+                "status": "failed",
+                "progress_pct": 100,
+                "current_step": f"❌ {err_msg}",
+                "error": err_msg,
+            })
+            return
+
+        # Chưa gắn HeyGen Key trên Vercel: chỉ thành công nếu có ffmpeg tạo được video thật
+        if self._generate_studio_placeholder_video(
+            output_path=final_video_path,
+            title=task["title"],
+            script=script,
+            aspect_ratio=aspect_ratio,
+            avatar_id=avatar_id,
+            user_id=user_id,
+            audio_path=audio_path if has_real_audio else None,
+        ):
+            self._update_task(task_id, {
+                "status": "completed",
+                "progress_pct": 100,
+                "current_step": "🎉 Hoàn tất! Video đã sẵn sàng phát sóng.",
+                "video_filename": final_video_filename,
+                "video_url": f"/api/media/file/{final_video_filename}",
+                "completed_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            })
+            return
+
+        detail = el_err or "Chưa cấu hình HeyGen API Key và môi trường Serverless không hỗ trợ FFmpeg fallback."
+        self._update_task(task_id, {
+            "status": "failed",
+            "progress_pct": 100,
+            "current_step": f"❌ {detail}",
+            "error": detail,
+        })
+
     def _run_render_pipeline(self, task_id: str):
         task = self.get_task(task_id)
         if not task:
@@ -939,18 +1319,14 @@ class ContentStudioEngine:
         el_key = keys.get("elevenlabs")
         hg_key = keys.get("heygen")
 
-        # Thư mục lưu media người dùng
         user_media_dir = os.path.join(STORAGE_DIR, "users", user_id, "media")
         os.makedirs(user_media_dir, exist_ok=True)
 
         audio_path = os.path.join(user_media_dir, f"{task['safe_title']}_{task_id[:6]}.mp3")
-        final_video_filename = f"AI_{task['safe_title']}_{task_id[:6]}.mp4"
+        final_video_filename = task["video_filename"] or f"AI_{task['safe_title']}_{task_id[:6]}.mp4"
         final_video_path = os.path.join(user_media_dir, final_video_filename)
 
         try:
-            # -------------------------------------------------------------
-            # BƯỚC 1: TẠO GIỌNG NÓI TỰ NHIÊN
-            # -------------------------------------------------------------
             self._update_task(task_id, {
                 "status": "synthesizing_audio",
                 "progress_pct": 20,
@@ -960,40 +1336,8 @@ class ContentStudioEngine:
 
             has_real_audio = False
             if el_key:
-                try:
-                    el_url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
-                    el_payload = {
-                        "text": script,
-                        "model_id": "eleven_multilingual_v2",
-                        "voice_settings": {
-                            "stability": 0.5,
-                            "similarity_boost": 0.75,
-                            "style": 0.2,
-                            "use_speaker_boost": True
-                        }
-                    }
-                    el_res = requests.post(
-                        el_url,
-                        headers={
-                            "xi-api-key": el_key,
-                            "Content-Type": "application/json"
-                        },
-                        json=el_payload,
-                        timeout=30
-                    )
-                    if el_res.status_code == 200:
-                        with open(audio_path, 'wb') as f:
-                            f.write(el_res.content)
-                        has_real_audio = True
-                        state.add_log("STUDIO", f"✅ [VOICE-AI] Đã tạo file audio thành công: {os.path.basename(audio_path)}")
-                    else:
-                        state.add_log("STUDIO", f"⚠️ [VOICE-AI] API trả mã {el_res.status_code}: {el_res.text[:120]}")
-                except Exception as e:
-                    state.add_log("STUDIO", f"⚠️ [VOICE-AI] Lỗi kết nối: {str(e)}")
+                has_real_audio, _ = self._synthesize_elevenlabs_audio(script, voice_id, audio_path, el_key)
 
-            # -------------------------------------------------------------
-            # BƯỚC 2: TẠO VIDEO MC KHỚP KHẨU HÌNH
-            # -------------------------------------------------------------
             self._update_task(task_id, {
                 "status": "rendering_video",
                 "progress_pct": 50,
@@ -1001,90 +1345,70 @@ class ContentStudioEngine:
             })
 
             has_real_video = False
+            remote_video_url = None
             if hg_key:
-                try:
-                    hg_url = "https://api.heygen.com/v3/videos"
-                    hg_payload = {
-                        "type": "avatar",
-                        "avatar_id": avatar_id,
-                        "title": task["title"],
-                        "aspect_ratio": aspect_ratio if aspect_ratio in ("9:16", "16:9") else "9:16",
-                        "script": script,
-                        "voice_id": voice_id,
-                        "background": {
-                            "value": "#0b0f19"
-                        }
-                    }
+                hg_video_id, hg_err = self._submit_heygen_video(
+                    title=task["title"],
+                    script=script,
+                    voice_id=voice_id,
+                    avatar_id=avatar_id,
+                    aspect_ratio=aspect_ratio,
+                    user_id=user_id,
+                    audio_path=audio_path,
+                    has_real_audio=has_real_audio,
+                    hg_key=hg_key,
+                )
+                if not hg_video_id:
+                    raise Exception(hg_err or "Không thể khởi tạo tác vụ render trên HeyGen")
 
-                    hg_res = requests.post(
-                        hg_url,
-                        headers={
-                            "X-Api-Key": hg_key,
-                            "Content-Type": "application/json"
-                        },
-                        json=hg_payload,
-                        timeout=30
+                self._update_task(task_id, {"heygen_video_id": hg_video_id})
+                state.add_log("STUDIO", f"🚀 [MC-AI] Tác vụ MC Video đang render trên máy chủ Cloud ({hg_video_id})...")
+                poll_attempts = 0
+                max_attempts = 60
+                while poll_attempts < max_attempts:
+                    time.sleep(5)
+                    poll_attempts += 1
+                    status_res = requests.get(
+                        f"https://api.heygen.com/v3/videos/{hg_video_id}",
+                        headers={"X-Api-Key": hg_key},
+                        timeout=15
                     )
+                    if status_res.status_code == 200:
+                        s_data = status_res.json().get("data", {})
+                        v_status = (s_data.get("status") or "").lower()
+                        pct = min(90, 50 + int(poll_attempts * 0.7))
+                        self._update_task(task_id, {
+                            "progress_pct": pct,
+                            "current_step": f"🎬 Hệ thống đang kết xuất khung hình MC ({pct}%)..."
+                        })
+                        if v_status == "completed":
+                            download_url = s_data.get("video_url")
+                            if download_url:
+                                remote_video_url = download_url
+                                self._update_task(task_id, {
+                                    "status": "downloading",
+                                    "progress_pct": 92,
+                                    "current_step": "📥 Đang tải video thành phẩm về Cloud Storage của bạn..."
+                                })
+                                dl_res = requests.get(download_url, timeout=120)
+                                if dl_res.status_code == 200 and len(dl_res.content) > 1024:
+                                    with open(final_video_path, 'wb') as vf:
+                                        vf.write(dl_res.content)
+                                    has_real_video = True
+                                    break
+                        elif v_status == "failed":
+                            error_msg = s_data.get("error", "MC video render failed")
+                            raise Exception(f"Kết xuất video MC thất bại: {error_msg}")
 
-                    if hg_res.status_code in (200, 201, 202):
-                        res_data = hg_res.json()
-                        v_info = res_data.get("data", {}) if isinstance(res_data, dict) else {}
-                        video_id = v_info.get("video_id") or v_info.get("id")
-                        if video_id:
-                            state.add_log("STUDIO", f"🚀 [MC-AI] Tác vụ MC Video đang render trên máy chủ Cloud...")
-                            poll_attempts = 0
-                            max_attempts = 60  # Tối đa ~5 phút
-                            while poll_attempts < max_attempts:
-                                time.sleep(5)
-                                poll_attempts += 1
-                                status_res = requests.get(
-                                    f"https://api.heygen.com/v3/videos/{video_id}",
-                                    headers={"X-Api-Key": hg_key},
-                                    timeout=15
-                                )
-                                if status_res.status_code == 200:
-                                    s_data = status_res.json().get("data", {})
-                                    v_status = s_data.get("status")
-                                    pct = min(90, 50 + int(poll_attempts * 0.7))
-                                    self._update_task(task_id, {
-                                        "progress_pct": pct,
-                                        "current_step": f"🎬 Hệ thống đang kết xuất khung hình MC ({pct}%)..."
-                                    })
-
-                                    if v_status == "completed":
-                                        download_url = s_data.get("video_url")
-                                        if download_url:
-                                            self._update_task(task_id, {
-                                                "status": "downloading",
-                                                "progress_pct": 92,
-                                                "current_step": "📥 Đang tải video thành phẩm về Cloud Storage của bạn..."
-                                            })
-                                            dl_res = requests.get(download_url, timeout=120)
-                                            if dl_res.status_code == 200:
-                                                with open(final_video_path, 'wb') as vf:
-                                                    vf.write(dl_res.content)
-                                                has_real_video = True
-                                                break
-                                    elif v_status == "failed":
-                                        error_msg = s_data.get("error", "MC video render failed")
-                                        raise Exception(f"Kết xuất video MC thất bại: {error_msg}")
-                    else:
-                        state.add_log("STUDIO", f"⚠️ [MC-AI] Máy chủ render trả mã {hg_res.status_code}: {hg_res.text[:120]}")
-                except Exception as e:
-                    state.add_log("STUDIO", f"⚠️ [MC-AI] Lỗi xử lý: {str(e)}")
-
-            # -------------------------------------------------------------
-            # BƯỚC 3: FALLBACK / SANDBOX MODE (NẾU CHƯA CÓ KEY HOẶC RENDER DEMO)
-            # -------------------------------------------------------------
             if not has_real_video:
+                if hg_key:
+                    raise Exception("HeyGen chưa trả video hoàn tất trong thời gian chờ.")
                 self._update_task(task_id, {
                     "progress_pct": 80,
                     "current_step": "⚡ [STUDIO SANDBOX] Tạo video mô phỏng MC AI chuẩn 60fps để kiểm thử..."
                 })
-                # Giả lập thời gian render để trải nghiệm chân thực
-                time.sleep(2)
-                # Dùng FFmpeg tạo 1 video mp4 demo với đồ họa Studio và ảnh người mẫu MC đã chọn
-                self._generate_studio_placeholder_video(
+                time.sleep(1)
+                ok_placeholder = self._generate_studio_placeholder_video(
                     output_path=final_video_path,
                     title=task["title"],
                     script=script,
@@ -1093,16 +1417,16 @@ class ContentStudioEngine:
                     user_id=user_id,
                     audio_path=audio_path if has_real_audio else None
                 )
+                if not ok_placeholder:
+                    raise Exception("Không tìm thấy FFmpeg để tạo video demo và chưa cấu hình HeyGen.")
 
-            # -------------------------------------------------------------
-            # HOÀN TẤT TÁC VỤ
-            # -------------------------------------------------------------
             self._update_task(task_id, {
                 "status": "completed",
                 "progress_pct": 100,
                 "current_step": "🎉 Hoàn tất! Video đã sẵn sàng phát sóng.",
                 "video_filename": final_video_filename,
                 "video_url": f"/api/media/file/{final_video_filename}",
+                "remote_video_url": remote_video_url,
                 "completed_at": time.strftime("%Y-%m-%d %H:%M:%S")
             })
 
@@ -1117,28 +1441,17 @@ class ContentStudioEngine:
                 "error": str(e)
             })
 
-    def _generate_studio_placeholder_video(self, output_path: str, title: str, script: str, aspect_ratio: str = "9:16", avatar_id: Optional[str] = None, user_id: Optional[str] = None, audio_path: Optional[str] = None):
-        """Tạo video studio chuyên nghiệp với MC AI / Người Mẫu bằng FFmpeg"""
+    def _generate_studio_placeholder_video(self, output_path: str, title: str, script: str, aspect_ratio: str = "9:16", avatar_id: Optional[str] = None, user_id: Optional[str] = None, audio_path: Optional[str] = None) -> bool:
+        """Tạo video studio bằng FFmpeg và trả về True chỉ khi file .mp4 thực sự tồn tại (>1KB)."""
         ffmpeg_bin = resolve_ffmpeg_bin()
-
         width, height = (1080, 1920) if aspect_ratio == "9:16" else (1920, 1080)
-        duration = 10 # 10 giây demo
-
-        # Tìm ảnh avatar nếu có
-        avatar_img_path = None
-        if avatar_id:
-            av_info = self.get_avatar_by_id(avatar_id, user_id=user_id)
-            if av_info:
-                local_f = av_info.get("local_file")
-                if local_f and os.path.exists(local_f):
-                    avatar_img_path = local_f
-
+        duration = 10
+        avatar_img_path = self._resolve_avatar_local_file(avatar_id, user_id=user_id)
         has_real_audio = audio_path and os.path.exists(audio_path)
 
         try:
             import subprocess
             if avatar_img_path and os.path.exists(avatar_img_path):
-                # Scale avatar chiếm ~72% chiều cao khung hình và đặt ở vị trí trung tâm
                 target_h = int(height * 0.72)
                 cmd = [
                     ffmpeg_bin, "-y",
@@ -1149,49 +1462,41 @@ class ContentStudioEngine:
                     cmd.extend(["-i", audio_path])
                 else:
                     cmd.extend(["-f", "lavfi", "-i", f"anullsrc=channel_layout=stereo:sample_rate=44100:d={duration}"])
-
                 cmd.extend([
                     "-filter_complex", f"[1:v]scale=-1:{target_h}[scaled];[0:v][scaled]overlay=(W-w)/2:(H-h)/2:shortest=1[v]",
-                    "-map", "[v]",
-                    "-map", "2:a",
+                    "-map", "[v]", "-map", "2:a",
                     "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
-                    "-c:a", "aac", "-b:a", "128k",
-                    "-shortest",
-                    output_path
+                    "-c:a", "aac", "-b:a", "128k", "-shortest", output_path
                 ])
             else:
-                cmd = [
-                    ffmpeg_bin, "-y",
-                    "-f", "lavfi", "-i", f"color=c=0x080c14:s={width}x{height}:d={duration}:r=30"
-                ]
+                cmd = [ffmpeg_bin, "-y", "-f", "lavfi", "-i", f"color=c=0x080c14:s={width}x{height}:d={duration}:r=30"]
                 if has_real_audio:
                     cmd.extend(["-i", audio_path])
                 else:
                     cmd.extend(["-f", "lavfi", "-i", f"sine=frequency=440:duration={duration}"])
-
                 cmd.extend([
                     "-vf", "drawbox=y=ih-300:color=0x0ea5e9@0.3:width=iw:height=200:t=fill",
                     "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
-                    "-c:a", "aac", "-b:a", "128k",
-                    "-shortest",
-                    output_path
+                    "-c:a", "aac", "-b:a", "128k", "-shortest", output_path
                 ])
 
             subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-        except Exception as e:
+            return os.path.exists(output_path) and os.path.getsize(output_path) > 1024
+        except Exception:
             fallback_cmd = [
                 ffmpeg_bin, "-y",
                 "-f", "lavfi", "-i", f"color=c=0x0b0f19:s={width}x{height}:d={duration}:r=30",
                 "-f", "lavfi", "-i", f"anullsrc=channel_layout=stereo:sample_rate=44100:d={duration}",
                 "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
-                "-c:a", "aac", "-shortest",
-                output_path
+                "-c:a", "aac", "-shortest", output_path
             ]
             try:
                 import subprocess
-                subprocess.run(fallback_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+                subprocess.run(fallback_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+                return os.path.exists(output_path) and os.path.getsize(output_path) > 1024
             except Exception as e:
                 print(f"Không thể tạo video placeholder: {e}")
+                return False
 
     def push_video_to_obs(self, user_id: str, video_filename: str, scene_name: Optional[str] = None, source_name: str = "MC_AI_Live") -> Dict[str, Any]:
         """Tự động nạp file video vào OBS Scene qua OBS WebSocket"""

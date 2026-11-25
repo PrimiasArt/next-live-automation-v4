@@ -1079,7 +1079,19 @@ async function loadCloudMedia() {
         const res = await fetch('/api/media/list', { headers: getAuthHeaders() });
         const data = await res.json();
         if (data.success) {
-            cloudMediaList = data.files || [];
+            const serverFiles = data.files || [];
+            const existingNames = new Set(serverFiles.map(f => f.filename));
+            const remoteVideos = csGetLocalVideos()
+                .filter(t => t.video_filename && (t.remote_video_url || (t.video_url && t.video_url.startsWith('http'))) && !existingNames.has(t.video_filename))
+                .map(t => ({
+                    filename: t.video_filename,
+                    size_mb: 0,
+                    ext: '.mp4 (CDN)',
+                    modified_at: t.completed_at || t.created_at || '',
+                    remote_url: t.remote_video_url || t.video_url,
+                    is_remote_cdn: true
+                }));
+            cloudMediaList = [...serverFiles, ...remoteVideos];
             const pct = Math.min(100, data.percent || 0);
             const totalMb = data.quota_mb || (currentUser ? currentUser.disk_quota_mb : 10240);
             if (currentUser) {
@@ -1137,6 +1149,8 @@ function renderCloudMedia(files) {
         const safeName = escapeHtml(f.filename);
         const safeExt = escapeHtml(f.ext);
         const safeDate = escapeHtml(f.modified_at);
+        const sizeDisplay = f.is_remote_cdn ? 'Cloud CDN' : `${(f.size_mb || 0).toLocaleString()} MB`;
+        const safeRemoteUrl = escapeHtml(f.remote_url || '');
 
         tableHtml += `
             <tr class="border-b border-[var(--border-subtle)] hover:bg-[var(--bg-elevated)]/40 transition-all text-xs">
@@ -1144,16 +1158,22 @@ function renderCloudMedia(files) {
                     <span class="text-base">🎬</span>
                     <span class="truncate max-w-[280px]" title="${safeName}">${safeName}</span>
                 </td>
-                <td class="py-3 px-4 font-mono text-sky-400 font-bold tabular-nums">${f.size_mb.toLocaleString()} MB</td>
+                <td class="py-3 px-4 font-mono text-sky-400 font-bold tabular-nums">${sizeDisplay}</td>
                 <td class="py-3 px-4 font-mono text-[var(--text-muted)] uppercase">${safeExt}</td>
                 <td class="py-3 px-4 text-[var(--text-muted)] tabular-nums">${safeDate}</td>
                 <td class="py-3 px-4 text-right space-x-2 whitespace-nowrap">
-                    <button type="button" data-fname="${safeName}" onclick="quickStreamWithVideo(this.dataset.fname)" class="px-3 py-1 rounded-lg bg-sky-500/15 hover:bg-sky-500 text-sky-400 hover:text-white border border-sky-500/30 text-xs font-semibold transition-all cursor-pointer">
-                        🚀 Phát Live
-                    </button>
-                    <button type="button" data-fname="${safeName}" onclick="deleteCloudMedia(this.dataset.fname)" class="px-3 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/30 text-xs font-semibold transition-all cursor-pointer">
-                        🗑️ Xóa
-                    </button>
+                    ${f.is_remote_cdn && safeRemoteUrl ? `
+                        <a href="${safeRemoteUrl}" target="_blank" rel="noopener" class="inline-block px-3 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500 text-emerald-400 hover:text-white border border-emerald-500/30 text-xs font-semibold transition-all">
+                            ▶ Xem CDN
+                        </a>
+                    ` : `
+                        <button type="button" data-fname="${safeName}" onclick="quickStreamWithVideo(this.dataset.fname)" class="px-3 py-1 rounded-lg bg-sky-500/15 hover:bg-sky-500 text-sky-400 hover:text-white border border-sky-500/30 text-xs font-semibold transition-all cursor-pointer">
+                            🚀 Phát Live
+                        </button>
+                        <button type="button" data-fname="${safeName}" onclick="deleteCloudMedia(this.dataset.fname)" class="px-3 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/30 text-xs font-semibold transition-all cursor-pointer">
+                            🗑️ Xóa
+                        </button>
+                    `}
                 </td>
             </tr>
         `;
@@ -1166,15 +1186,21 @@ function renderCloudMedia(files) {
                         <span class="px-2 py-0.5 rounded bg-[var(--bg-card)] border border-[var(--border-subtle)] font-mono text-xs uppercase text-[var(--text-muted)]">${safeExt}</span>
                     </div>
                     <div class="font-mono text-xs font-bold text-[var(--text-main)] truncate" title="${safeName}">${safeName}</div>
-                    <div class="text-xs text-[var(--text-muted)] tabular-nums">${f.size_mb.toLocaleString()} MB • ${safeDate}</div>
+                    <div class="text-xs text-[var(--text-muted)] tabular-nums">${sizeDisplay} • ${safeDate}</div>
                 </div>
                 <div class="flex items-center gap-2 pt-2 border-t border-[var(--border-subtle)]">
-                    <button type="button" data-fname="${safeName}" onclick="quickStreamWithVideo(this.dataset.fname)" class="flex-1 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-xs font-semibold cursor-pointer">
-                        🚀 Phát Live
-                    </button>
-                    <button type="button" data-fname="${safeName}" onclick="deleteCloudMedia(this.dataset.fname)" class="px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500 text-rose-400 hover:text-white text-xs font-semibold cursor-pointer">
-                        🗑️
-                    </button>
+                    ${f.is_remote_cdn && safeRemoteUrl ? `
+                        <a href="${safeRemoteUrl}" target="_blank" rel="noopener" class="flex-1 text-center py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-semibold">
+                            ▶ Xem / Tải CDN
+                        </a>
+                    ` : `
+                        <button type="button" data-fname="${safeName}" onclick="quickStreamWithVideo(this.dataset.fname)" class="flex-1 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-xs font-semibold cursor-pointer">
+                            🚀 Phát Live
+                        </button>
+                        <button type="button" data-fname="${safeName}" onclick="deleteCloudMedia(this.dataset.fname)" class="px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500 text-rose-400 hover:text-white text-xs font-semibold cursor-pointer">
+                            🗑️
+                        </button>
+                    `}
                 </div>
             </div>
         `;
@@ -2480,9 +2506,14 @@ async function submitGenerateAIVideo() {
         if (data.success && data.task) {
             loadUserCredits();
             showTaskProgress(data.task);
-            csStartTaskPolling(data.task.task_id);
-            showToast('Tác vụ tạo Video AI đã kích hoạt! Đang render...', 'success');
+            if (data.task.status === 'completed') {
+                onAIVideoCompleted(data.task);
+            } else {
+                csStartTaskPolling(data.task);
+                showToast('Tác vụ tạo Video AI đã kích hoạt! Đang render...', 'success');
+            }
         } else {
+            loadUserCredits();
             showToast(data.message || 'Không thể tạo video!', 'error');
         }
     } catch (e) {
@@ -2493,6 +2524,40 @@ async function submitGenerateAIVideo() {
             btn.classList.remove('opacity-50', 'cursor-not-allowed');
         }
     }
+}
+
+function csLocalVideosKey() {
+    const uid = (currentUser && (currentUser.id || currentUser.username)) ? (currentUser.id || currentUser.username) : 'default';
+    return `hlc_cs_videos_${uid}`;
+}
+
+function csGetLocalVideos() {
+    try {
+        const raw = localStorage.getItem(csLocalVideosKey());
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+function csSaveLocalVideo(task) {
+    if (!task || !task.video_filename) return;
+    try {
+        const list = csGetLocalVideos().filter(x => x.task_id !== task.task_id && x.video_filename !== task.video_filename);
+        list.unshift({
+            task_id: task.task_id || ('cs_' + Date.now()),
+            title: task.title || task.video_filename,
+            video_filename: task.video_filename,
+            video_url: task.video_url || '',
+            remote_video_url: task.remote_video_url || '',
+            heygen_video_id: task.heygen_video_id || '',
+            status: 'completed',
+            created_at: task.created_at || new Date().toISOString().slice(0, 19).replace('T', ' '),
+            completed_at: task.completed_at || new Date().toISOString().slice(0, 19).replace('T', ' ')
+        });
+        localStorage.setItem(csLocalVideosKey(), JSON.stringify(list.slice(0, 20)));
+    } catch (e) {}
 }
 
 function showTaskProgress(task) {
@@ -2508,14 +2573,29 @@ function showTaskProgress(task) {
     if (step) step.innerText = task.current_step || 'Đang xử lý...';
 }
 
-function csStartTaskPolling(taskId) {
+function csStartTaskPolling(taskOrId) {
     if (csActivePollInterval) clearInterval(csActivePollInterval);
+    const initialTask = (typeof taskOrId === 'object' && taskOrId) ? taskOrId : { task_id: String(taskOrId || '') };
+    let pollMeta = {
+        taskId: initialTask.task_id,
+        hgVideoId: initialTask.heygen_video_id || '',
+        filename: initialTask.video_filename || '',
+        title: initialTask.title || ''
+    };
+
     csActivePollInterval = setInterval(async () => {
         try {
-            const res = await fetch(`/api/content-studio/task/${taskId}`, { headers: getAuthHeaders() });
+            const qs = new URLSearchParams();
+            if (pollMeta.hgVideoId) qs.set('hg_video_id', pollMeta.hgVideoId);
+            if (pollMeta.filename) qs.set('filename', pollMeta.filename);
+            if (pollMeta.title) qs.set('title', pollMeta.title);
+            const qStr = qs.toString() ? `?${qs.toString()}` : '';
+            const res = await fetch(`/api/content-studio/task/${pollMeta.taskId}${qStr}`, { headers: getAuthHeaders() });
             const data = await res.json();
             if (data.success && data.task) {
                 const t = data.task;
+                if (t.heygen_video_id) pollMeta.hgVideoId = t.heygen_video_id;
+                if (t.video_filename) pollMeta.filename = t.video_filename;
                 showTaskProgress(t);
                 if (t.status === 'completed') {
                     clearInterval(csActivePollInterval);
@@ -2524,15 +2604,17 @@ function csStartTaskPolling(taskId) {
                 } else if (t.status === 'failed') {
                     clearInterval(csActivePollInterval);
                     csActivePollInterval = null;
+                    loadUserCredits();
                     showToast('Render video thất bại: ' + (t.error || 'Lỗi không xác định'), 'error');
                 }
             }
         } catch (e) {}
-    }, 2000);
+    }, 3000);
 }
 
 function onAIVideoCompleted(task) {
     csCurrentGeneratedVideo = task.video_filename;
+    csSaveLocalVideo(task);
     loadUserCredits();
     csLoadRecentTasks();
 
@@ -2543,11 +2625,22 @@ function onAIVideoCompleted(task) {
     const dlLink = document.getElementById('cs-download-link');
 
     const apiKey = encodeURIComponent(localStorage.getItem('hlc_api_key') || localStorage.getItem('hlc_cloud_key') || '');
-    const mediaUrl = task.video_filename
+    const localUrl = task.video_filename
         ? `/api/media/file/${encodeURIComponent(task.video_filename)}?api_key=${apiKey}`
         : '';
+    const isHttpUrl = (u) => typeof u === 'string' && (u.startsWith('http://') || u.startsWith('https://'));
+    const remoteUrl = task.remote_video_url || (isHttpUrl(task.video_url) ? task.video_url : '');
+    const mediaUrl = isHttpUrl(task.video_url) ? task.video_url : (localUrl || remoteUrl);
 
     if (player && mediaUrl) {
+        player.onerror = () => {
+            if (remoteUrl && player.src !== remoteUrl) {
+                player.src = remoteUrl;
+                player.load();
+                player.play().catch(() => {});
+                if (dlLink) dlLink.href = remoteUrl;
+            }
+        };
         player.src = mediaUrl;
         player.classList.remove('hidden');
         if (placeholder) placeholder.classList.add('hidden');
@@ -2564,8 +2657,10 @@ function onAIVideoCompleted(task) {
     if (dlLink && mediaUrl) {
         dlLink.href = mediaUrl;
     }
-    showToast(`Video "${task.video_filename}" đã hoàn tất và lưu vào Kho Media!`, 'success');
+    showToast(`Video "${task.video_filename}" đã hoàn tất!`, 'success');
 }
+
+let _csRecentTasksMap = {};
 
 async function csLoadRecentTasks() {
     const listEl = document.getElementById('cs-recent-tasks-list');
@@ -2573,40 +2668,54 @@ async function csLoadRecentTasks() {
     try {
         const res = await fetch('/api/content-studio/tasks', { headers: getAuthHeaders() });
         const data = await res.json();
-        if (data.success && data.tasks) {
-            if (data.tasks.length === 0) {
-                listEl.innerHTML = `<div class="text-[var(--text-muted)] text-center py-4 italic">Chưa có video nào trong phiên làm việc.</div>`;
-                return;
-            }
-            let html = '';
-            data.tasks.slice(0, 5).forEach(t => {
-                const isDone = (t.status === 'completed');
-                const safeFname = escapeHtml(t.video_filename || '');
-                html += `
-                    <div class="p-3 rounded-xl border border-[var(--border-subtle)] saas-surface flex items-center justify-between gap-2">
-                        <div class="truncate space-y-0.5">
-                            <div class="font-bold text-[var(--text-main)] truncate flex items-center gap-1.5">
-                                <span>${isDone ? '🎬' : '⏳'}</span>
-                                <span class="truncate">${escapeHtml(t.title)}</span>
-                            </div>
-                            <div class="text-xs text-[var(--text-muted)] font-mono tabular-nums">${escapeHtml(t.created_at)}</div>
-                        </div>
-                        <div class="flex items-center gap-1.5 shrink-0">
-                            ${isDone && t.video_filename ? `
-                                <button type="button" data-fname="${safeFname}" onclick="csPreviewVideo(this.dataset.fname)" class="px-2.5 py-1 rounded-lg saas-card hover:bg-[var(--bg-elevated)] text-[var(--text-main)] font-semibold text-xs cursor-pointer">
-                                    ▶ Xem
-                                </button>
-                                <button type="button" data-fname="${safeFname}" onclick="pushVideoToOBSDirect(this.dataset.fname)" class="px-2.5 py-1 rounded-lg bg-sky-500/15 hover:bg-sky-500 text-sky-400 hover:text-white border border-sky-500/30 font-semibold text-xs cursor-pointer" title="Nạp vào OBS">
-                                    🎛️ OBS
-                                </button>
-                            ` : `<span class="text-xs text-amber-400 font-mono">Đang render</span>`}
-                        </div>
-                    </div>
-                `;
-            });
-            listEl.innerHTML = html;
+        const serverTasks = (data.success && Array.isArray(data.tasks)) ? data.tasks : [];
+        const seen = new Set(serverTasks.map(t => t.task_id));
+        const merged = [...serverTasks];
+        csGetLocalVideos().forEach(lt => {
+            if (!seen.has(lt.task_id)) merged.push(lt);
+        });
+
+        _csRecentTasksMap = {};
+        if (merged.length === 0) {
+            listEl.innerHTML = `<div class="text-[var(--text-muted)] text-center py-4 italic">Chưa có video nào trong phiên làm việc.</div>`;
+            return;
         }
+        let html = '';
+        merged.slice(0, 6).forEach(t => {
+            _csRecentTasksMap[t.task_id] = t;
+            const isDone = (t.status === 'completed');
+            const isFail = (t.status === 'failed');
+            const safeTid = escapeHtml(t.task_id);
+            const safeFname = escapeHtml(t.video_filename || '');
+            html += `
+                <div class="p-3 rounded-xl border border-[var(--border-subtle)] saas-surface flex items-center justify-between gap-2">
+                    <div class="truncate space-y-0.5">
+                        <div class="font-bold text-[var(--text-main)] truncate flex items-center gap-1.5">
+                            <span>${isDone ? '🎬' : (isFail ? '❌' : '⏳')}</span>
+                            <span class="truncate">${escapeHtml(t.title)}</span>
+                        </div>
+                        <div class="text-xs text-[var(--text-muted)] font-mono tabular-nums">${escapeHtml(t.created_at || '')}</div>
+                    </div>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                        ${isDone && t.video_filename ? `
+                            <button type="button" data-tid="${safeTid}" onclick="csPreviewTask(this.dataset.tid)" class="px-2.5 py-1 rounded-lg saas-card hover:bg-[var(--bg-elevated)] text-[var(--text-main)] font-semibold text-xs cursor-pointer">
+                                ▶ Xem
+                            </button>
+                            <button type="button" data-fname="${safeFname}" onclick="pushVideoToOBSDirect(this.dataset.fname)" class="px-2.5 py-1 rounded-lg bg-sky-500/15 hover:bg-sky-500 text-sky-400 hover:text-white border border-sky-500/30 font-semibold text-xs cursor-pointer" title="Nạp vào OBS">
+                                🎛️ OBS
+                            </button>
+                        ` : (isFail ? `<span class="text-xs text-rose-400 font-mono">Lỗi</span>` : `<span class="text-xs text-amber-400 font-mono">Đang render</span>`)}
+                    </div>
+                </div>
+            `;
+        });
+        listEl.innerHTML = html;
     } catch (e) {}
+}
+
+function csPreviewTask(taskId) {
+    const task = _csRecentTasksMap[taskId];
+    if (task) onAIVideoCompleted(task);
 }
 
 function csPreviewVideo(filename) {

@@ -155,6 +155,16 @@ def generate_video(user):
         aspect_ratio=aspect_ratio
     )
 
+    if task.get("status") == "failed":
+        if not deduct_res.get("is_admin"):
+            api_key_manager.add_credits(api_key, cost)
+        return jsonify({
+            "success": False,
+            "message": task.get("error") or "Không thể tạo video AI!",
+            "task": task,
+            "remaining_credits": api_key_manager.get_credits(api_key)
+        }), 400
+
     return jsonify({
         "success": True,
         "message": f"Đã khởi tạo tác vụ render video thành công! (-{cost} Credits)",
@@ -173,13 +183,34 @@ def list_tasks(user):
 @content_studio_bp.route('/api/content-studio/task/<task_id>', methods=['GET'])
 @login_required
 def get_task_status(user, task_id):
-    task = content_studio_engine.get_task(task_id)
-    if not task:
-        return jsonify({"success": False, "message": "Không tìm thấy tác vụ này"}), 404
+    import re
     user_id = user.get("id") or user.get("key")
-    if user.get("role") != "admin" and task.get("user_id") != user_id:
-        return jsonify({"success": False, "message": "Bạn không có quyền xem tác vụ này"}), 403
-    return jsonify({"success": True, "task": task})
+    task = content_studio_engine.get_task(task_id)
+    if task:
+        if user.get("role") != "admin" and task.get("user_id") != user_id:
+            return jsonify({"success": False, "message": "Bạn không có quyền xem tác vụ này"}), 403
+        if task.get("status") == "rendering_video" and task.get("heygen_video_id") and os.getenv("VERCEL"):
+            task = content_studio_engine.poll_heygen_video_once(
+                task_id=task_id,
+                hg_video_id=task["heygen_video_id"],
+                user_id=task.get("user_id") or user_id,
+                title=task.get("title", ""),
+                final_video_filename=task.get("video_filename", ""),
+            )
+        return jsonify({"success": True, "task": task})
+
+    hg_video_id = (request.args.get("hg_video_id") or "").strip()
+    if hg_video_id and re.match(r"^[A-Za-z0-9_-]{6,80}$", hg_video_id):
+        task = content_studio_engine.poll_heygen_video_once(
+            task_id=task_id,
+            hg_video_id=hg_video_id,
+            user_id=user_id,
+            title=(request.args.get("title") or "").strip(),
+            final_video_filename=(request.args.get("filename") or "").strip(),
+        )
+        return jsonify({"success": True, "task": task})
+
+    return jsonify({"success": False, "message": "Không tìm thấy tác vụ này"}), 404
 
 @content_studio_bp.route('/api/content-studio/push-obs', methods=['POST'])
 @login_required
