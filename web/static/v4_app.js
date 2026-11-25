@@ -2818,9 +2818,12 @@ async function checkHeygenCredits() {
                 statusBadge.className = 'text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-mono font-semibold';
             }
             if (resBox) {
+                const balLabel = escapeHtml(data.display_balance || `${data.remaining_quota} Credits`);
+                const acctInfo = data.account ? `<div class="text-[var(--text-muted)] text-xs mt-0.5">Tài khoản: ${escapeHtml(data.account)} (${escapeHtml(data.billing_type || 'v3')})</div>` : '';
                 resBox.innerHTML = `
-                    <div class="text-sky-400 font-bold">✅ Kết Nối HeyGen OK!</div>
-                    <div class="mt-1 text-[var(--text-main)]">Credits Khả Dụng: <span class="font-mono font-bold text-amber-400">${data.remaining_quota}</span> Video Credits</div>
+                    <div class="text-sky-400 font-bold">✅ Kết Nối HeyGen API v3 OK!</div>
+                    <div class="mt-1 text-[var(--text-main)]">Số Dư Khả Dụng: <span class="font-mono font-bold text-amber-400">${balLabel}</span></div>
+                    ${acctInfo}
                 `;
             }
         } else {

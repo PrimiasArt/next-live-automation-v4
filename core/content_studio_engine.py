@@ -256,29 +256,75 @@ class ContentStudioEngine:
             return {"success": False, "message": f"Lỗi kết nối ElevenLabs: {str(e)}"}
 
     def check_heygen_balance(self, api_key: Optional[str] = None) -> Dict[str, Any]:
-        """Kiểm tra hạn mức Credits khả dụng tài khoản HeyGen"""
+        """Kiểm tra hạn mức số dư / Credits khả dụng tài khoản HeyGen (API v3 /v3/users/me)."""
         key = (api_key or self.settings.get("heygen_api_key") or os.getenv("HEYGEN_API_KEY", "")).strip()
         if not key:
             return {"success": False, "message": "Chưa cấu hình HeyGen API Key"}
         try:
             r = requests.get(
-                "https://api.heygen.com/v2/user/remaining_quota",
+                "https://api.heygen.com/v3/users/me",
                 headers={"X-Api-Key": key},
                 timeout=8
             )
             if r.status_code == 200:
-                data = r.json().get("data", {})
-                quota = data.get("quota", 0) if isinstance(data, dict) else 0
+                body = r.json() if r.content else {}
+                data = body.get("data") if isinstance(body, dict) and isinstance(body.get("data"), dict) else (body if isinstance(body, dict) else {})
+                billing_type = (data.get("billing_type") or "").strip().lower()
+                wallet = data.get("wallet") if isinstance(data.get("wallet"), dict) else {}
+                subscription = data.get("subscription") if isinstance(data.get("subscription"), dict) else {}
+                usage_based = data.get("usage_based") if isinstance(data.get("usage_based"), dict) else {}
+                account = (data.get("email") or data.get("username") or "").strip()
+
+                plan = ""
+                remaining_quota: Any = 0
+                display_balance = "0 Credits"
+
+                if wallet and wallet.get("remaining_balance") is not None:
+                    bal = wallet.get("remaining_balance", 0)
+                    currency = (wallet.get("currency") or "USD").upper()
+                    remaining_quota = bal
+                    display_balance = f"{bal} {currency}"
+                    billing_type = billing_type or "wallet"
+                elif subscription and isinstance(subscription.get("credits"), dict):
+                    credits_obj = subscription.get("credits") or {}
+                    prem = (credits_obj.get("premium_credits") or {}).get("remaining", 0) or 0
+                    addon = (credits_obj.get("add_on_credits") or {}).get("remaining", 0) or 0
+                    remaining_quota = prem + addon
+                    plan = (subscription.get("plan") or "").strip()
+                    display_balance = f"{remaining_quota} Credits" + (f" ({plan.upper()})" if plan else "")
+                    billing_type = billing_type or "subscription"
+                else:
+                    fallback_bal = (
+                        usage_based.get("remaining_balance")
+                        or usage_based.get("remaining_quota")
+                        or data.get("remaining_quota")
+                        or data.get("quota")
+                        or 0
+                    )
+                    remaining_quota = fallback_bal
+                    plan = (subscription.get("plan") or "").strip()
+                    display_balance = f"{fallback_bal}" + (f" ({plan.upper()})" if plan else " Credits")
+
                 return {
                     "success": True,
                     "platform": "HeyGen",
-                    "remaining_quota": quota,
-                    "message": f"Số dư khả dụng: {quota} Credits HeyGen"
+                    "billing_type": billing_type or "standard",
+                    "plan": plan,
+                    "account": account,
+                    "remaining_quota": remaining_quota,
+                    "display_balance": display_balance,
+                    "message": f"Số dư khả dụng: {display_balance}"
                 }
             else:
                 msg = "Key không hợp lệ hoặc đã hết hạn"
                 try:
-                    msg = r.json().get("error", {}).get("message", msg)
+                    err_json = r.json()
+                    if isinstance(err_json, dict):
+                        err_obj = err_json.get("error")
+                        if isinstance(err_obj, dict) and err_obj.get("message"):
+                            msg = err_obj["message"]
+                        elif err_json.get("message"):
+                            msg = err_json["message"]
                 except Exception:
                     pass
                 return {"success": False, "message": f"HeyGen ({r.status_code}): {msg}"}
@@ -957,35 +1003,17 @@ class ContentStudioEngine:
             has_real_video = False
             if hg_key:
                 try:
-                    # Kích thước khung hình
-                    width, height = (1080, 1920) if aspect_ratio == "9:16" else (1920, 1080)
-                    
-                    hg_url = "https://api.heygen.com/v2/video/generate"
+                    hg_url = "https://api.heygen.com/v3/videos"
                     hg_payload = {
-                        "video_inputs": [
-                            {
-                                "character": {
-                                    "type": "avatar",
-                                    "avatar_id": avatar_id,
-                                    "avatar_style": "normal"
-                                },
-                                "voice": {
-                                    "type": "text",
-                                    "input_text": script,
-                                    "voice_id": voice_id
-                                },
-                                "background": {
-                                    "type": "color",
-                                    "value": "#0b0f19"
-                                }
-                            }
-                        ],
-                        "dimension": {
-                            "width": width,
-                            "height": height
-                        },
+                        "type": "avatar",
+                        "avatar_id": avatar_id,
                         "title": task["title"],
-                        "test": False
+                        "aspect_ratio": aspect_ratio if aspect_ratio in ("9:16", "16:9") else "9:16",
+                        "script": script,
+                        "voice_id": voice_id,
+                        "background": {
+                            "value": "#0b0f19"
+                        }
                     }
 
                     hg_res = requests.post(
@@ -997,20 +1025,20 @@ class ContentStudioEngine:
                         json=hg_payload,
                         timeout=30
                     )
-                    
-                    if hg_res.status_code == 200:
+
+                    if hg_res.status_code in (200, 201, 202):
                         res_data = hg_res.json()
-                        video_id = res_data.get("data", {}).get("video_id")
+                        v_info = res_data.get("data", {}) if isinstance(res_data, dict) else {}
+                        video_id = v_info.get("video_id") or v_info.get("id")
                         if video_id:
                             state.add_log("STUDIO", f"🚀 [MC-AI] Tác vụ MC Video đang render trên máy chủ Cloud...")
-                            # Polling kiểm tra trạng thái video
                             poll_attempts = 0
-                            max_attempts = 60 # Tối đa ~5 phút
+                            max_attempts = 60  # Tối đa ~5 phút
                             while poll_attempts < max_attempts:
                                 time.sleep(5)
                                 poll_attempts += 1
                                 status_res = requests.get(
-                                    f"https://api.heygen.com/v1/video_status.get?video_id={video_id}",
+                                    f"https://api.heygen.com/v3/videos/{video_id}",
                                     headers={"X-Api-Key": hg_key},
                                     timeout=15
                                 )
