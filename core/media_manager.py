@@ -3,8 +3,12 @@ import time
 import shutil
 from typing import List, Dict, Any, Optional
 
-STORAGE_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "storage")
-USERS_STORAGE = os.path.join(STORAGE_ROOT, "users")
+try:
+    from config import STORAGE_DIR
+except Exception:
+    STORAGE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "storage")
+
+USERS_STORAGE = os.path.join(STORAGE_DIR, "users")
 
 ALLOWED_EXTENSIONS = {'.mp4', '.mkv', '.flv', '.mov', '.avi', '.ts'}
 

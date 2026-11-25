@@ -22,7 +22,7 @@ def get_streams(user):
 @login_required
 def save_stream(user):
     tenant_id = user.get("id") or user.get("key") or "default"
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     video_filename = data.get("video_filename", "")
     rtmp_url = data.get("rtmp_url", "").strip()
     stream_key = data.get("stream_key", "").strip()
@@ -50,7 +50,7 @@ def save_stream(user):
 def delete_stream(user):
     tenant_id = user.get("id") or user.get("key") or "default"
     is_admin = user.get("role") == "admin"
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     stream_id = data.get("stream_id", "")
     res = cloud_stream_engine.delete_stream(tenant_id, stream_id, is_admin=is_admin)
     return jsonify(res)
@@ -60,7 +60,7 @@ def delete_stream(user):
 def start_stream(user):
     tenant_id = user.get("id") or user.get("key") or "default"
     is_admin = user.get("role") == "admin"
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     stream_id = data.get("stream_id", "")
     res = cloud_stream_engine.start_stream(tenant_id, stream_id, is_admin=is_admin)
     return jsonify(res)
@@ -70,7 +70,7 @@ def start_stream(user):
 def stop_stream(user):
     tenant_id = user.get("id") or user.get("key") or "default"
     is_admin = user.get("role") == "admin"
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     stream_id = data.get("stream_id", "")
     res = cloud_stream_engine.stop_stream(tenant_id, stream_id, is_admin=is_admin)
     return jsonify(res)

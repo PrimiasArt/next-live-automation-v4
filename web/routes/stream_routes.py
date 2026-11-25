@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from web.routes.auth_routes import login_required
 from core.obs_engine import engine
 from core.state import state
 from core.stream_process_manager import process_manager
@@ -6,13 +7,15 @@ from core.stream_process_manager import process_manager
 stream_bp = Blueprint('stream', __name__)
 
 @stream_bp.route('/api/stream/settings', methods=['GET'])
-def get_stream_settings():
+@login_required
+def get_stream_settings(user):
     res = engine.get_stream_settings()
     return jsonify(res)
 
 @stream_bp.route('/api/stream/settings', methods=['POST'])
-def set_stream_settings():
-    data = request.json or {}
+@login_required
+def set_stream_settings(user):
+    data = request.get_json(silent=True) or {}
     server = data.get('server', '').strip()
     key = data.get('key', '').strip()
     service_type = data.get('service_type', 'rtmp_custom')
@@ -25,33 +28,38 @@ def set_stream_settings():
     return jsonify(res), status_code
 
 @stream_bp.route('/api/stream/status', methods=['GET'])
-def get_stream_status():
+@login_required
+def get_stream_status(user):
     status = engine.get_stream_status()
     return jsonify({"success": True, **status})
 
 @stream_bp.route('/api/stream/start', methods=['POST'])
-def start_stream():
+@login_required
+def start_stream(user):
     res = engine.start_streaming()
     status_code = 200 if res.get("success") else 500
     return jsonify(res), status_code
 
 @stream_bp.route('/api/stream/stop', methods=['POST'])
-def stop_stream():
+@login_required
+def stop_stream(user):
     res = engine.stop_streaming()
     status_code = 200 if res.get("success") else 500
     return jsonify(res), status_code
 
 @stream_bp.route('/api/obs/video_settings', methods=['GET'])
 @stream_bp.route('/api/processor/video_settings', methods=['GET'])
-def get_video_settings():
+@login_required
+def get_video_settings(user):
     res = engine.get_video_settings()
     status_code = 200 if res.get("success") else 500
     return jsonify(res), status_code
 
 @stream_bp.route('/api/obs/video_settings', methods=['POST'])
 @stream_bp.route('/api/processor/video_settings', methods=['POST'])
-def set_video_settings():
-    data = request.json or {}
+@login_required
+def set_video_settings(user):
+    data = request.get_json(silent=True) or {}
     base_w = int(data.get('base_width', 1080))
     base_h = int(data.get('base_height', 1920))
     out_w = int(data.get('output_width', 1080))
@@ -71,15 +79,17 @@ def set_video_settings():
 
 @stream_bp.route('/api/obs/output_settings', methods=['GET'])
 @stream_bp.route('/api/processor/output_settings', methods=['GET'])
-def get_output_settings():
+@login_required
+def get_output_settings(user):
     res = engine.get_output_parameters()
     status_code = 200 if res.get("success") else 500
     return jsonify(res), status_code
 
 @stream_bp.route('/api/obs/output_settings', methods=['POST'])
 @stream_bp.route('/api/processor/output_settings', methods=['POST'])
-def set_output_settings():
-    data = request.json or {}
+@login_required
+def set_output_settings(user):
+    data = request.get_json(silent=True) or {}
     vbitrate = data.get('video_bitrate')
     abitrate = data.get('audio_bitrate')
     encoder = data.get('video_encoder')
@@ -97,11 +107,12 @@ def set_output_settings():
     return jsonify(res), status_code
 
 @stream_bp.route('/api/settings/overlap', methods=['GET', 'POST'])
-def handle_overlap_settings():
+@login_required
+def handle_overlap_settings(user):
     if request.method == 'GET':
         overlap = engine.get_current_overlap_time()
         return jsonify({"success": True, "overlap_time": overlap})
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     try:
         overlap = float(data.get('overlap_time', 1.0))
         if state.current_profile:
@@ -112,7 +123,8 @@ def handle_overlap_settings():
         return jsonify({"success": False, "message": str(e)}), 400
 
 @stream_bp.route('/api/stream/preview', methods=['GET'])
-def get_stream_preview():
+@login_required
+def get_stream_preview(user):
     w = int(request.args.get('w', 360))
     h = int(request.args.get('h', 640))
     q = int(request.args.get('q', 70))
@@ -121,13 +133,15 @@ def get_stream_preview():
     return jsonify(res), status_code
 
 @stream_bp.route('/api/processor/status', methods=['GET'])
-def get_processor_status():
+@login_required
+def get_processor_status(user):
     status = process_manager.get_status()
     status["connected"] = engine.ensure_connection()
     return jsonify(status)
 
 @stream_bp.route('/api/processor/start', methods=['POST'])
-def start_processor():
+@login_required
+def start_processor(user):
     res = process_manager.start_processor()
     if res.get("success"):
         engine.connect_obs(auto_launch=False)
@@ -135,13 +149,15 @@ def start_processor():
     return jsonify(res), status_code
 
 @stream_bp.route('/api/processor/stop', methods=['POST'])
-def stop_processor():
+@login_required
+def stop_processor(user):
     res = process_manager.stop_processor()
     status_code = 200 if res.get("success") else 500
     return jsonify(res), status_code
 
 @stream_bp.route('/api/processor/restart', methods=['POST'])
-def restart_processor():
+@login_required
+def restart_processor(user):
     res = process_manager.restart_processor()
     if res.get("success"):
         engine.connect_obs(auto_launch=False)

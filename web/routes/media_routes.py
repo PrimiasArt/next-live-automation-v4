@@ -40,7 +40,7 @@ def upload_media(user):
 @media_bp.route('/api/media/delete', methods=['DELETE'])
 @login_required
 def delete_media(user):
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     filename = data.get("filename", "")
     if not filename:
         return jsonify({"success": False, "message": "Thiếu tên file"}), 400
@@ -50,6 +50,7 @@ def delete_media(user):
     return jsonify(res)
 
 @media_bp.route('/api/media/file/<filename>', methods=['GET'])
+@media_bp.route('/api/media/play/<filename>', methods=['GET'])
 @login_required
 def get_media_file(user, filename):
     tenant_id = user.get("id") or user.get("key") or "default"

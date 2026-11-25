@@ -11,16 +11,36 @@ class HLCEngine:
         self.cl = None
         self.last_video = None
         self.running = True
+        self._loop_lock = threading.Lock()
+        self._loop_thread = None
+        self._connect_lock = threading.Lock()
+        self._last_connect_fail_ts = 0.0
+        self._last_fail_log_ts = 0.0
+        self._connect_cooldown_sec = 8.0
         import os
-        if not os.getenv("VERCEL"):
-            self.connect_obs()
+        if not os.getenv("VERCEL") and not os.getenv("DISABLE_OBS_AUTOSTART"):
+            self.connect_obs(auto_launch=False)
 
-    def connect_obs(self, auto_launch: bool = True):
+    def start_background_loop(self) -> bool:
+        """Khởi chạy vòng lặp tự động phát video trên luồng nền (đảm bảo chỉ chạy 1 lần)."""
+        import os
+        if os.getenv("VERCEL") or os.getenv("DISABLE_OBS_LOOP"):
+            return False
+        with self._loop_lock:
+            if self._loop_thread and self._loop_thread.is_alive():
+                return False
+            self.running = True
+            self._loop_thread = threading.Thread(target=self.start_loop, daemon=True)
+            self._loop_thread.start()
+            return True
+
+    def connect_obs(self, auto_launch: bool = False, timeout: float = 1.0):
         try:
-            kwargs = {"host": OBS_HOST, "port": OBS_PORT}
+            kwargs = {"host": OBS_HOST, "port": OBS_PORT, "timeout": timeout}
             if OBS_PASSWORD:
                 kwargs["password"] = OBS_PASSWORD
             self.cl = obs.ReqClient(**kwargs)
+            self._last_connect_fail_ts = 0.0
             state.add_log("PROCESSOR", f"✅ Đã kết nối Stream Processor Engine tại {OBS_HOST}:{OBS_PORT}")
             return True
         except Exception as e:
@@ -34,17 +54,30 @@ class HLCEngine:
                         state.add_log("PROCESSOR", "⚙️ Stream Processor chưa chạy -> Đang tự động kích hoạt ngầm...")
                         res = process_manager.start_processor(minimize_to_tray=True)
                         if res.get("success"):
-                            return self.connect_obs(auto_launch=False)
+                            return self.connect_obs(auto_launch=False, timeout=timeout)
                 except Exception:
                     pass
-            state.add_log("PROCESSOR", f"❌ Không thể kết nối tới Stream Processor Engine: {str(e)}")
+            now = time.monotonic()
+            self._last_connect_fail_ts = now
+            if now - self._last_fail_log_ts >= 30.0:
+                self._last_fail_log_ts = now
+                state.add_log("PROCESSOR", f"❌ Không thể kết nối tới Stream Processor Engine: {str(e)}")
             self.cl = None
             return False
 
-    def ensure_connection(self):
-        if not self.cl:
-            return self.connect_obs()
-        return True
+    def ensure_connection(self, auto_launch: bool = False, force: bool = False):
+        if self.cl:
+            return True
+        now = time.monotonic()
+        if not force and self._last_connect_fail_ts and (now - self._last_connect_fail_ts) < self._connect_cooldown_sec:
+            return False
+        with self._connect_lock:
+            if self.cl:
+                return True
+            now = time.monotonic()
+            if not force and self._last_connect_fail_ts and (now - self._last_connect_fail_ts) < self._connect_cooldown_sec:
+                return False
+            return self.connect_obs(auto_launch=auto_launch)
 
     def get_current_scene_name(self):
         if state.current_profile:
@@ -562,77 +595,81 @@ class HLCEngine:
         accumulated_seconds = 0.0
 
         while self.running:
-            if not state.is_authorized:
-                time.sleep(0.5)
-                continue
-
-            if not state.is_running or not state.current_profile:
-                time.sleep(0.5)
-                continue
-
-            if state.quota_remaining <= 0:
-                state.set_authorized(False)
-                time.sleep(1)
-                continue
-
-            if state.fast_switch_event.is_set():
-                state.fast_switch_event.clear()
-
-            videos_list = state.current_profile.get("videos", [])
-            if not videos_list:
-                state.current_video = "Scene chưa có video base_ nào"
-                state.remaining = 0.0
-                state.progress = 0.0
-                time.sleep(1)
-                continue
-
-            durations_map = {v["name"]: float(v.get("duration", 30.0)) for v in videos_list}
-
-            next_task = state.get_next_task()
-            if next_task:
-                current_name = next_task
-            else:
-                available_keys = list(durations_map.keys())
-                if len(available_keys) > 1 and self.last_video in available_keys:
-                    available_keys.remove(self.last_video)
-                current_name = random.choice(available_keys) if available_keys else list(durations_map.keys())[0]
-
-            duration = durations_map.get(current_name, 30.0)
-            overlap = self.get_current_overlap_time()
-
-            if self.play_video(current_name):
-                wait_time = max(0.1, duration - overlap)
-                start_p = time.time()
-                
-                interrupted = False
-                while (time.time() - start_p) < wait_time:
-                    if state.fast_switch_event.is_set() or not state.is_running:
-                        state.add_log("FAST-SWITCH", f"⚡ [NGẮT] Dừng video '{current_name}'!")
-                        interrupted = True
-                        break
-                    
-                    elapsed = time.time() - start_p
-                    rem = max(0.0, wait_time - elapsed)
-                    prog = (elapsed / wait_time) * 100.0 if wait_time > 0 else 0.0
-                    state.update_video_status(current_name, rem, prog)
-                    time.sleep(0.1)
-
-                if interrupted:
-                    state.fast_switch_event.clear()
+            try:
+                if not state.is_authorized:
+                    time.sleep(0.5)
                     continue
 
-                accumulated_seconds += duration
+                if not state.is_running or not state.current_profile:
+                    time.sleep(0.5)
+                    continue
 
-                if accumulated_seconds >= 60.0:
-                    mins = int(accumulated_seconds // 60)
-                    accumulated_seconds -= (mins * 60)
-                    new_quota = state.deduct_quota(mins)
-                    threading.Thread(
-                        target=quota_manager.deduct_quota,
-                        args=(state.api_key_id, new_quota),
-                        daemon=True
-                    ).start()
-            else:
-                time.sleep(2.0)
+                if state.quota_remaining <= 0:
+                    state.set_authorized(False)
+                    time.sleep(1)
+                    continue
+
+                if state.fast_switch_event.is_set():
+                    state.fast_switch_event.clear()
+
+                videos_list = state.current_profile.get("videos", [])
+                if not videos_list:
+                    state.current_video = "Scene chưa có video base_ nào"
+                    state.remaining = 0.0
+                    state.progress = 0.0
+                    time.sleep(1)
+                    continue
+
+                durations_map = {v["name"]: float(v.get("duration", 30.0)) for v in videos_list}
+
+                next_task = state.get_next_task()
+                if next_task:
+                    current_name = next_task
+                else:
+                    available_keys = list(durations_map.keys())
+                    if len(available_keys) > 1 and self.last_video in available_keys:
+                        available_keys.remove(self.last_video)
+                    current_name = random.choice(available_keys) if available_keys else list(durations_map.keys())[0]
+
+                duration = durations_map.get(current_name, 30.0)
+                overlap = self.get_current_overlap_time()
+
+                if self.play_video(current_name):
+                    wait_time = max(0.1, duration - overlap)
+                    start_p = time.time()
+                    
+                    interrupted = False
+                    while (time.time() - start_p) < wait_time:
+                        if state.fast_switch_event.is_set() or not state.is_running:
+                            state.add_log("FAST-SWITCH", f"⚡ [NGẮT] Dừng video '{current_name}'!")
+                            interrupted = True
+                            break
+                        
+                        elapsed = time.time() - start_p
+                        rem = max(0.0, wait_time - elapsed)
+                        prog = (elapsed / wait_time) * 100.0 if wait_time > 0 else 0.0
+                        state.update_video_status(current_name, rem, prog)
+                        time.sleep(0.1)
+
+                    if interrupted:
+                        state.fast_switch_event.clear()
+                        continue
+
+                    accumulated_seconds += duration
+
+                    if accumulated_seconds >= 60.0:
+                        mins = int(accumulated_seconds // 60)
+                        accumulated_seconds -= (mins * 60)
+                        new_quota = state.deduct_quota(mins)
+                        threading.Thread(
+                            target=quota_manager.deduct_quota,
+                            args=(state.api_key_id, new_quota),
+                            daemon=True
+                        ).start()
+                else:
+                    time.sleep(2.0)
+            except Exception as e:
+                state.add_log("PROCESSOR", f"⚠️ Lỗi vòng lặp tự động: {str(e)}")
+                time.sleep(1.0)
 
 engine = HLCEngine()

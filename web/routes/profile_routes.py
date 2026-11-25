@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from web.routes.auth_routes import login_required
 from core.profile_manager import profile_manager
 from core.obs_engine import engine
 from core.state import state
@@ -6,7 +7,8 @@ from core.state import state
 profile_bp = Blueprint('profile', __name__)
 
 @profile_bp.route('/api/profiles', methods=['GET'])
-def get_profiles():
+@login_required
+def get_profiles(user):
     profiles = profile_manager.list_profiles()
     active_id = state.current_profile.get("id") if state.current_profile else None
     return jsonify({
@@ -17,14 +19,16 @@ def get_profiles():
     })
 
 @profile_bp.route('/api/profiles/<profile_id>', methods=['GET'])
-def get_profile_detail(profile_id):
+@login_required
+def get_profile_detail(user, profile_id):
     p = profile_manager.get_profile(profile_id)
     if not p:
         return jsonify({"success": False, "message": "Không tìm thấy Profile"}), 404
     return jsonify({"success": True, "profile": p})
 
 @profile_bp.route('/api/scene/select', methods=['POST'])
-def select_scene_and_run():
+@login_required
+def select_scene_and_run(user):
     """
     Chọn Scene từ OBS để bắt đầu chạy:
     1. Quét hoặc lấy Profile tương ứng
@@ -32,7 +36,7 @@ def select_scene_and_run():
     3. Chỉ tắt mắt các source base_xxx
     4. Bắt đầu phát!
     """
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     scene_name = data.get('scene_name', '').strip()
 
     if not scene_name:
@@ -53,7 +57,8 @@ def select_scene_and_run():
     })
 
 @profile_bp.route('/api/scene/standby', methods=['POST'])
-def set_standby_mode():
+@login_required
+def set_standby_mode(user):
     """
     Đưa hệ thống về chế độ chờ (Tạm dừng phát)
     """
@@ -61,8 +66,9 @@ def set_standby_mode():
     return jsonify({"success": True, "message": "Hệ thống đã về Chế độ Chờ (Standby)"})
 
 @profile_bp.route('/api/profiles/switch', methods=['POST'])
-def switch_profile():
-    data = request.json or {}
+@login_required
+def switch_profile(user):
+    data = request.get_json(silent=True) or {}
     profile_id = data.get('profile_id')
     fast_switch = data.get('fast_switch', True)
 
@@ -81,8 +87,9 @@ def switch_profile():
     })
 
 @profile_bp.route('/api/profiles/save', methods=['POST'])
-def save_profile():
-    data = request.json or {}
+@login_required
+def save_profile(user):
+    data = request.get_json(silent=True) or {}
     name = data.get('name', '').strip()
     scene_name = data.get('scene_name', '').strip()
     videos = data.get('videos', [])
@@ -126,7 +133,8 @@ def save_profile():
         return jsonify({"success": False, "message": "Lỗi lưu file profile"}), 500
 
 @profile_bp.route('/api/profiles/<profile_id>', methods=['DELETE'])
-def delete_profile(profile_id):
+@login_required
+def delete_profile(user, profile_id):
     if state.current_profile and profile_id == state.current_profile.get("id"):
         return jsonify({"success": False, "message": "Không thể xóa Profile đang hoạt động!"}), 400
 
@@ -138,14 +146,16 @@ def delete_profile(profile_id):
 
 @profile_bp.route('/api/obs/scenes', methods=['GET'])
 @profile_bp.route('/api/processor/scenes', methods=['GET'])
-def get_obs_scenes():
+@login_required
+def get_obs_scenes(user):
     engine.ensure_connection()
     result = profile_manager.scan_obs_scenes(engine.cl)
     return jsonify(result)
 
 @profile_bp.route('/api/obs/scene_items', methods=['GET'])
 @profile_bp.route('/api/processor/scene_items', methods=['GET'])
-def get_obs_scene_items():
+@login_required
+def get_obs_scene_items(user):
     scene_name = request.args.get('scene_name', '').strip()
     if not scene_name:
         return jsonify({"success": False, "message": "Thiếu tham số scene_name"}), 400

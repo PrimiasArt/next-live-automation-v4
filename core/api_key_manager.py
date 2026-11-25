@@ -3,6 +3,7 @@ import json
 import time
 import secrets
 import re
+import threading
 from typing import Dict, List, Any, Optional
 try:
     from config import ADMIN_API_KEY, DATA_DIR
@@ -11,6 +12,7 @@ except Exception:
     DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 
 from core.quota_manager import quota_manager
+from core.runtime_utils import atomic_write_json
 
 KEYS_FILE = os.path.join(DATA_DIR, "api_keys.json")
 
@@ -19,6 +21,7 @@ MASTER_ADMIN_KEY = os.getenv("ADMIN_API_KEY", ADMIN_API_KEY)
 
 class ApiKeyManager:
     def __init__(self):
+        self._lock = threading.RLock()
         try:
             os.makedirs(DATA_DIR, exist_ok=True)
         except Exception:
@@ -32,40 +35,49 @@ class ApiKeyManager:
         return s.strip('_') or 'client'
 
     def load_keys(self):
-        if os.path.exists(KEYS_FILE):
-            try:
-                with open(KEYS_FILE, 'r', encoding='utf-8') as f:
-                    self.keys = json.load(f)
-            except Exception:
+        with self._lock:
+            if os.path.exists(KEYS_FILE):
+                try:
+                    with open(KEYS_FILE, 'r', encoding='utf-8') as f:
+                        self.keys = json.load(f)
+                except Exception:
+                    self.keys = {}
+            else:
                 self.keys = {}
-        else:
-            self.keys = {}
 
     def save_keys(self):
-        try:
-            with open(KEYS_FILE, 'w', encoding='utf-8') as f:
-                json.dump(self.keys, f, ensure_ascii=False, indent=2)
-        except Exception:
-            pass
+        with self._lock:
+            try:
+                atomic_write_json(KEYS_FILE, self.keys)
+            except Exception:
+                pass
 
     def ensure_default_keys(self):
         # Dọn dẹp key placeholder cũ nếu có
         if "HLC_ADMIN_MASTER_2026" in self.keys and MASTER_ADMIN_KEY != "HLC_ADMIN_MASTER_2026":
             del self.keys["HLC_ADMIN_MASTER_2026"]
 
-        # 1. Luôn bảo đảm có Admin API Key
-        admin_entry = {
-            "key": MASTER_ADMIN_KEY,
-            "id": "admin",
-            "name": "Master Key (Trạm Phát Sóng Chính)",
-            "role": "admin",
-            "max_streams": 20,
-            "disk_quota_mb": 102400, # 100 GB
-            "quota_remaining": 999999,
-            "status": "active",
-            "created_at": time.strftime("%Y-%m-%d %H:%M:%S")
-        }
-        self.keys[MASTER_ADMIN_KEY] = admin_entry
+        # 1. Luôn bảo đảm có Admin API Key (giữ nguyên created_at nếu đã tồn tại)
+        existing_admin = self.keys.get(MASTER_ADMIN_KEY)
+        if not existing_admin:
+            self.keys[MASTER_ADMIN_KEY] = {
+                "key": MASTER_ADMIN_KEY,
+                "id": "admin",
+                "name": "Master Key (Trạm Phát Sóng Chính)",
+                "role": "admin",
+                "max_streams": 20,
+                "disk_quota_mb": 102400, # 100 GB
+                "quota_remaining": 999999,
+                "status": "active",
+                "created_at": time.strftime("%Y-%m-%d %H:%M:%S")
+            }
+        else:
+            existing_admin["role"] = "admin"
+            existing_admin["status"] = "active"
+            existing_admin.setdefault("id", "admin")
+            existing_admin.setdefault("max_streams", 20)
+            existing_admin.setdefault("disk_quota_mb", 102400)
+            existing_admin.setdefault("quota_remaining", 999999)
 
         # 2. Tạo 1 key demo mẫu cho khách hàng nếu chưa có
         demo_client_key = "HLC_DEMO_CLIENT_KEY"
@@ -83,6 +95,15 @@ class ApiKeyManager:
             }
 
         self.save_keys()
+
+    def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """Tìm thông tin tenant/key theo id, user_id hoặc raw key."""
+        if not user_id:
+            return None
+        for entry in self.keys.values():
+            if entry.get("id") == user_id or entry.get("user_id") == user_id or entry.get("key") == user_id:
+                return dict(entry)
+        return None
 
     def validate_key(self, api_key: str) -> Dict[str, Any]:
         api_key = (api_key or "").strip()
@@ -203,27 +224,49 @@ class ApiKeyManager:
         else:
             key = self.generate_formatted_api_key()
 
-        if key in self.keys:
-            return {"success": False, "message": f"Mã API Key '{key}' đã tồn tại"}
+        with self._lock:
+            if key in self.keys:
+                return {"success": False, "message": f"Mã API Key '{key}' đã tồn tại"}
 
-        import uuid
-        key_id = str(uuid.uuid4())
-        user_id = self._slugify(name)
-        # Đảm bảo user_id là duy nhất trong local
-        base_id = user_id
-        counter = 1
-        existing_ids = {u.get("id") for u in self.keys.values()}
-        while user_id in existing_ids:
-            user_id = f"{base_id}_{counter}"
-            counter += 1
+            import uuid
+            key_id = str(uuid.uuid4())
+            user_id = self._slugify(name)
+            # Đảm bảo user_id là duy nhất trong local
+            base_id = user_id
+            counter = 1
+            existing_ids = {u.get("id") for u in self.keys.values()}
+            while user_id in existing_ids:
+                user_id = f"{base_id}_{counter}"
+                counter += 1
 
-        expires_at_iso = None
-        if expires_days and int(expires_days) > 0:
-            import datetime
-            exp_date = datetime.datetime.utcnow() + datetime.timedelta(days=int(expires_days))
-            expires_at_iso = exp_date.strftime("%Y-%m-%dT%H:%M:%S+00:00")
+            expires_at_iso = None
+            if expires_days and int(expires_days) > 0:
+                import datetime
+                exp_date = datetime.datetime.utcnow() + datetime.timedelta(days=int(expires_days))
+                expires_at_iso = exp_date.strftime("%Y-%m-%dT%H:%M:%S+00:00")
 
-        # Đẩy lên Supabase Cloud nếu được yêu cầu
+            import hashlib
+            key_hash = hashlib.sha256(key.strip().encode('utf-8')).hexdigest()
+
+            entry = {
+                "key": key,
+                "id": key_id,
+                "user_id": user_id,
+                "name": name,
+                "role": "client",
+                "max_streams": max(1, int(max_streams)),
+                "disk_quota_mb": max(512, int(disk_quota_mb)),
+                "quota_remaining": max(0, int(quota_remaining)),
+                "status": "active",
+                "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "expires_at": expires_at_iso,
+                "key_hash": key_hash,
+                "synced_supabase": False
+            }
+            self.keys[key] = entry
+            self.save_keys()
+
+        # Đẩy lên Supabase Cloud ngoài lock để không chặn luồng khách khác
         supabase_res = None
         supabase_synced = False
         if push_supabase:
@@ -235,27 +278,12 @@ class ApiKeyManager:
                 key_id=key_id
             )
             supabase_synced = bool(supabase_res.get("success"))
-
-        import hashlib
-        key_hash = hashlib.sha256(key.strip().encode('utf-8')).hexdigest()
-
-        entry = {
-            "key": key,
-            "id": key_id,
-            "user_id": user_id,
-            "name": name,
-            "role": "client",
-            "max_streams": max(1, int(max_streams)),
-            "disk_quota_mb": max(512, int(disk_quota_mb)),
-            "quota_remaining": max(0, int(quota_remaining)),
-            "status": "active",
-            "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "expires_at": expires_at_iso,
-            "key_hash": key_hash,
-            "synced_supabase": supabase_synced
-        }
-        self.keys[key] = entry
-        self.save_keys()
+            if supabase_synced:
+                with self._lock:
+                    if key in self.keys:
+                        self.keys[key]["synced_supabase"] = True
+                        self.save_keys()
+                        entry = dict(self.keys[key])
 
         return {
             "success": True,
@@ -426,61 +454,95 @@ class ApiKeyManager:
         if api_key == MASTER_ADMIN_KEY:
             return 999999
         item = self.keys.get(api_key)
-        if not item:
-            return 0
-        return int(item.get("quota_remaining", 0))
+        if item:
+            return int(item.get("quota_remaining", 0))
+        try:
+            from core.auth_manager import auth_manager
+            acct_user = auth_manager.verify_token(api_key)
+            if acct_user:
+                return 999999 if acct_user.get("role") == "admin" else int(acct_user.get("quota_remaining", 500))
+        except Exception:
+            pass
+        return 0
+
+    def _sync_quota_supabase_async(self, item: Dict[str, Any]):
+        if not item.get("synced_supabase"):
+            return
+        kid = item.get("id")
+        if not kid or len(str(kid)) < 20:
+            return
+        new_quota = int(item.get("quota_remaining", 0))
+        threading.Thread(
+            target=quota_manager.deduct_quota,
+            args=(kid, new_quota),
+            daemon=True,
+        ).start()
 
     def deduct_credits(self, api_key: str, amount: int, reason: str = "") -> Dict[str, Any]:
         if api_key == MASTER_ADMIN_KEY:
             return {"success": True, "remaining": 999999, "deducted": 0, "is_admin": True}
 
-        if api_key not in self.keys:
-            return {"success": False, "message": "API Key không hợp lệ"}
+        with self._lock:
+            if api_key not in self.keys:
+                try:
+                    from core.auth_manager import auth_manager
+                    acct_user = auth_manager.verify_token(api_key)
+                    if acct_user and acct_user.get("role") == "admin":
+                        return {"success": True, "remaining": 999999, "deducted": 0, "is_admin": True}
+                except Exception:
+                    pass
+                return {"success": False, "message": "API Key không hợp lệ"}
 
-        item = self.keys[api_key]
-        current_credits = int(item.get("quota_remaining", 0))
-        if current_credits < amount:
-            return {
-                "success": False, 
-                "message": f"Số dư không đủ! Cần {amount} Credits nhưng chỉ còn {current_credits} Credits. Vui lòng liên hệ Admin để nạp thêm gói dịch vụ.",
-                "current_credits": current_credits,
-                "required_credits": amount
-            }
+            item = self.keys[api_key]
+            current_credits = int(item.get("quota_remaining", 0))
+            if current_credits < amount:
+                return {
+                    "success": False,
+                    "message": f"Số dư không đủ! Cần {amount} Credits nhưng chỉ còn {current_credits} Credits. Vui lòng liên hệ Admin để nạp thêm gói dịch vụ.",
+                    "current_credits": current_credits,
+                    "required_credits": amount
+                }
 
-        item["quota_remaining"] = current_credits - amount
-        self.keys[api_key] = item
-        self.save_keys()
+            item["quota_remaining"] = current_credits - amount
+            self.keys[api_key] = item
+            self.save_keys()
+            snapshot = dict(item)
 
+        self._sync_quota_supabase_async(snapshot)
         return {
             "success": True,
             "deducted": amount,
-            "remaining": item["quota_remaining"],
+            "remaining": snapshot["quota_remaining"],
             "reason": reason
         }
 
     def add_credits(self, api_key: str, amount: int) -> Dict[str, Any]:
-        if api_key not in self.keys:
-            return {"success": False, "message": "API Key không tồn tại"}
+        with self._lock:
+            if api_key not in self.keys:
+                return {"success": False, "message": "API Key không tồn tại"}
 
-        item = self.keys[api_key]
-        item["quota_remaining"] = int(item.get("quota_remaining", 0)) + int(amount)
-        self.keys[api_key] = item
-        self.save_keys()
+            item = self.keys[api_key]
+            item["quota_remaining"] = int(item.get("quota_remaining", 0)) + int(amount)
+            self.keys[api_key] = item
+            self.save_keys()
+            snapshot = dict(item)
 
+        self._sync_quota_supabase_async(snapshot)
         return {
             "success": True,
             "added": amount,
-            "new_balance": item["quota_remaining"]
+            "new_balance": snapshot["quota_remaining"]
         }
 
     def delete_key(self, key: str) -> Dict[str, Any]:
         if key == MASTER_ADMIN_KEY:
             return {"success": False, "message": "Không thể xóa Admin Master Key"}
-        if key not in self.keys:
-            return {"success": False, "message": "API Key không tồn tại"}
+        with self._lock:
+            if key not in self.keys:
+                return {"success": False, "message": "API Key không tồn tại"}
 
-        self.keys.pop(key, None)
-        self.save_keys()
+            self.keys.pop(key, None)
+            self.save_keys()
         return {"success": True, "message": "Đã xóa API Key thành công"}
 
 api_key_manager = ApiKeyManager()

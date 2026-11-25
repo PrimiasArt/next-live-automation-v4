@@ -2,13 +2,20 @@ import os
 import sys
 import time
 import json
+import uuid
 import subprocess
 import threading
 from typing import Dict, List, Any, Optional
 from core.auth_manager import auth_manager
+from core.api_key_manager import api_key_manager
+from core.runtime_utils import resolve_ffmpeg_bin, atomic_write_json
 
-STORAGE_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "storage")
-USERS_STORAGE = os.path.join(STORAGE_ROOT, "users")
+try:
+    from config import STORAGE_DIR
+except Exception:
+    STORAGE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "storage")
+
+USERS_STORAGE = os.path.join(STORAGE_DIR, "users")
 
 class CloudStreamProcess:
     def __init__(self, stream_id: str, username: str, title: str, input_file: str, rtmp_url: str, stream_key: str, mode: str = "direct"):
@@ -32,9 +39,6 @@ class CloudStreamProcess:
         url = self.rtmp_url.rstrip('/')
         if not self.stream_key:
             return url
-        # If stream_key already included or separated by /
-        if url.endswith('/live') or url.endswith('/app'):
-            return f"{url}/{self.stream_key}"
         return f"{url}/{self.stream_key}"
 
     def to_dict(self) -> Dict[str, Any]:
@@ -64,7 +68,7 @@ class CloudStreamProcess:
 class CloudStreamEngine:
     def __init__(self):
         self.streams: Dict[str, CloudStreamProcess] = {}
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.watchdog_thread = threading.Thread(target=self._watchdog_loop, daemon=True)
         self.watchdog_thread.start()
         self.load_persisted_configs()
@@ -113,8 +117,7 @@ class CloudStreamEngine:
             }
             for p in self.streams.values() if p.username == username
         ]
-        with open(cfg_file, 'w', encoding='utf-8') as f:
-            json.dump(user_streams, f, ensure_ascii=False, indent=2)
+        atomic_write_json(cfg_file, user_streams)
 
     def get_user_active_count(self, username: str) -> int:
         with self.lock:
@@ -122,7 +125,7 @@ class CloudStreamEngine:
 
     def create_or_update_stream(self, username: str, title: str, input_file: str, rtmp_url: str, stream_key: str, mode: str = "direct", stream_id: Optional[str] = None) -> Dict[str, Any]:
         if not stream_id:
-            stream_id = f"str_{username}_{int(time.time() * 1000) % 1000000}"
+            stream_id = f"str_{username}_{int(time.time() * 1000) % 1000000}_{uuid.uuid4().hex[:6]}"
 
         if not os.path.exists(input_file):
             return {"success": False, "message": "File video nguồn không tồn tại trên Cloud Storage"}
@@ -131,7 +134,7 @@ class CloudStreamEngine:
 
         with self.lock:
             proc = self.streams.get(stream_id)
-            if proc and proc.status == "running":
+            if proc and proc.status in ("starting", "running", "restarting"):
                 return {"success": False, "message": "Luồng đang phát sóng, vui lòng dừng luồng trước khi cập nhật cấu hình"}
 
             new_proc = CloudStreamProcess(
@@ -164,26 +167,36 @@ class CloudStreamEngine:
 
         return {"success": True, "message": "Đã xóa cấu hình luồng"}
 
-    def start_stream(self, username: str, stream_id: str, is_admin: bool = False) -> Dict[str, Any]:
+    def start_stream(self, username: str, stream_id: str, is_admin: bool = False, is_retry: bool = False) -> Dict[str, Any]:
         proc = self.streams.get(stream_id)
         if not proc:
             return {"success": False, "message": "Luồng không tồn tại"}
         if not is_admin and proc.username != username:
             return {"success": False, "message": "Bạn không có quyền điều khiển luồng này"}
 
-        if proc.status == "running":
+        if proc.status == "running" and proc.process and proc.process.poll() is None:
             return {"success": True, "message": "Luồng đã đang phát sóng", "stream": proc.to_dict()}
 
-        # Kiểm tra quota số luồng tối đa của User
-        user = auth_manager.get_user_safe(proc.username)
-        max_streams = user.get("max_streams", 1) if user else 1
+        if not os.path.exists(proc.input_file):
+            proc.status = "error"
+            proc.error_message = "File video nguồn không tồn tại trên Cloud Storage"
+            return {"success": False, "message": proc.error_message}
+
+        # Kiểm tra quota số luồng tối đa của tenant từ ApiKeyManager (fallback AuthManager)
+        user = api_key_manager.get_user_by_id(proc.username) or auth_manager.get_user_safe(proc.username)
+        max_streams = int(user.get("max_streams", 1)) if user else 1
+        user_is_admin = is_admin or (bool(user) and user.get("role") == "admin")
         active_count = self.get_user_active_count(proc.username)
         
-        if not is_admin and active_count >= max_streams:
+        if not user_is_admin and active_count >= max_streams:
             return {
                 "success": False, 
                 "message": f"Bạn đã đạt giới hạn tối đa {max_streams} luồng live cùng lúc! Vui lòng dừng bớt luồng khác hoặc liên hệ Admin nâng cấp gói."
             }
+
+        if not is_retry:
+            proc.auto_restart = True
+            proc.restart_count = 0
 
         # Build FFmpeg command
         full_rtmp = proc.get_full_rtmp()
@@ -191,7 +204,8 @@ class CloudStreamEngine:
         # FFmpeg command options
         # -re: Read input at native frame rate
         # -stream_loop -1: Loop video infinitely
-        cmd = ["ffmpeg", "-re", "-stream_loop", "-1", "-i", proc.input_file]
+        ffmpeg_bin = resolve_ffmpeg_bin()
+        cmd = [ffmpeg_bin, "-re", "-stream_loop", "-1", "-i", proc.input_file]
 
         if proc.mode == "direct":
             # DIRECT STREAM COPY: siêu nhẹ, tốn ~1% CPU
@@ -237,6 +251,8 @@ class CloudStreamEngine:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 universal_newlines=True,
+                encoding="utf-8",
+                errors="replace",
                 creationflags=flags
             )
             proc.process = p
@@ -253,17 +269,24 @@ class CloudStreamEngine:
             return {"success": False, "message": f"Lỗi khởi chạy FFmpeg: {str(e)}"}
 
     def _capture_logs(self, proc: CloudStreamProcess):
-        if not proc.process:
+        process = proc.process
+        if not process or not process.stdout:
             return
         try:
-            for line in proc.process.stdout:
+            for line in process.stdout:
                 line_str = line.strip()
                 if line_str:
-                    proc.logs.append(line_str)
-                    if len(proc.logs) > 50:
-                        proc.logs.pop(0)
+                    with self.lock:
+                        proc.logs.append(line_str)
+                        if len(proc.logs) > 50:
+                            proc.logs.pop(0)
         except Exception:
             pass
+        finally:
+            try:
+                process.stdout.close()
+            except Exception:
+                pass
 
     def stop_stream(self, username: str, stream_id: str, is_admin: bool = False) -> Dict[str, Any]:
         proc = self.streams.get(stream_id)
@@ -297,12 +320,13 @@ class CloudStreamEngine:
             return [p.to_dict() for p in self.streams.values() if p.username == username]
 
     def get_stream_logs(self, username: str, stream_id: str, is_admin: bool = False) -> Dict[str, Any]:
-        proc = self.streams.get(stream_id)
-        if not proc:
-            return {"success": False, "message": "Không tìm thấy luồng"}
-        if not is_admin and proc.username != username:
-            return {"success": False, "message": "Quyền truy cập bị từ chối"}
-        return {"success": True, "logs": proc.logs[-30:], "status": proc.status}
+        with self.lock:
+            proc = self.streams.get(stream_id)
+            if not proc:
+                return {"success": False, "message": "Không tìm thấy luồng"}
+            if not is_admin and proc.username != username:
+                return {"success": False, "message": "Quyền truy cập bị từ chối"}
+            return {"success": True, "logs": list(proc.logs[-30:]), "status": proc.status}
 
     def _watchdog_loop(self):
         while True:
@@ -312,15 +336,17 @@ class CloudStreamEngine:
                     if proc.status == "running" and proc.process:
                         poll_result = proc.process.poll()
                         if poll_result is not None:
+                            proc.process = None
                             # Process died
                             if proc.auto_restart and proc.restart_count < 10:
                                 proc.restart_count += 1
+                                proc.status = "restarting"
                                 proc.logs.append(f"⚠️ Luồng bị ngắt kết nối. Đang tự động kết nối lại (lần {proc.restart_count})...")
                                 # Restart
-                                threading.Thread(target=self.start_stream, args=(proc.username, proc.stream_id, True), daemon=True).start()
+                                threading.Thread(target=self.start_stream, args=(proc.username, proc.stream_id, True, True), daemon=True).start()
                             else:
                                 proc.status = "error"
                                 proc.error_message = f"Tiến trình kết thúc với mã thoát {poll_result}"
-                                proc.process = None
+                                proc.started_at = None
 
 cloud_stream_engine = CloudStreamEngine()

@@ -9,8 +9,40 @@ content_studio_bp = Blueprint('content_studio', __name__)
 @content_studio_bp.route('/api/content-studio/voices', methods=['GET'])
 @login_required
 def get_voices(user):
-    voices = content_studio_engine.get_voices()
-    return jsonify({"success": True, "voices": voices})
+    force_refresh = request.args.get("refresh", "0").lower() in ("1", "true", "yes")
+    res = content_studio_engine.fetch_voices_from_elevenlabs(force_refresh=force_refresh)
+    return jsonify(res)
+
+@content_studio_bp.route('/api/content-studio/voices/library', methods=['GET'])
+@login_required
+def search_voice_library(user):
+    search = request.args.get("search", "")
+    language = request.args.get("language", "")
+    gender = request.args.get("gender", "")
+    category = request.args.get("category", "")
+    try:
+        page_size = int(request.args.get("page_size", 24))
+    except Exception:
+        page_size = 24
+    res = content_studio_engine.search_elevenlabs_library(
+        search=search,
+        language=language,
+        gender=gender,
+        category=category,
+        page_size=page_size,
+    )
+    return jsonify(res)
+
+@content_studio_bp.route('/api/content-studio/voices/library/add', methods=['POST'])
+@admin_required
+def add_voice_from_library(user):
+    data = request.get_json(silent=True) or {}
+    public_owner_id = (data.get("public_owner_id") or "").strip()
+    voice_id = (data.get("voice_id") or "").strip()
+    new_name = (data.get("name") or "").strip()
+    res = content_studio_engine.add_library_voice(public_owner_id, voice_id, new_name=new_name)
+    status_code = 200 if res.get("success") else 400
+    return jsonify(res), status_code
 
 @content_studio_bp.route('/api/content-studio/avatars', methods=['GET'])
 @login_required
@@ -89,15 +121,21 @@ def get_user_credits(user):
 @content_studio_bp.route('/api/content-studio/generate', methods=['POST'])
 @login_required
 def generate_video(user):
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     script = data.get("script", "").strip()
     title = data.get("title", "").strip() or "Video MC Bán Hàng"
-    voice_id = data.get("voice_id", "21m00Tcm4TlvDq8ikWAM")
+    voice_id = (data.get("voice_id") or "").strip()
     avatar_id = data.get("avatar_id", "Daisy-inskirt-20220818")
     aspect_ratio = data.get("aspect_ratio", "9:16")
 
     if not script:
         return jsonify({"success": False, "message": "Vui lòng nhập kịch bản cần nói!"}), 400
+
+    if not voice_id:
+        live_voices = content_studio_engine.get_voices()
+        if not live_voices:
+            return jsonify({"success": False, "message": "Chưa tải được giọng đọc từ ElevenLabs API! Vui lòng đồng bộ lại giọng đọc."}), 400
+        voice_id = live_voices[0]["id"]
 
     api_key = user.get("key")
     cost = content_studio_engine.settings.get("cost_per_video_gen", 10)
@@ -128,7 +166,8 @@ def generate_video(user):
 @login_required
 def list_tasks(user):
     user_id = user.get("id") or user.get("key")
-    tasks = content_studio_engine.list_user_tasks(user_id)
+    is_admin = (user.get("role") == "admin")
+    tasks = content_studio_engine.list_user_tasks(user_id, is_admin=is_admin)
     return jsonify({"success": True, "tasks": tasks})
 
 @content_studio_bp.route('/api/content-studio/task/<task_id>', methods=['GET'])
@@ -137,12 +176,15 @@ def get_task_status(user, task_id):
     task = content_studio_engine.get_task(task_id)
     if not task:
         return jsonify({"success": False, "message": "Không tìm thấy tác vụ này"}), 404
+    user_id = user.get("id") or user.get("key")
+    if user.get("role") != "admin" and task.get("user_id") != user_id:
+        return jsonify({"success": False, "message": "Bạn không có quyền xem tác vụ này"}), 403
     return jsonify({"success": True, "task": task})
 
 @content_studio_bp.route('/api/content-studio/push-obs', methods=['POST'])
 @login_required
 def push_to_obs(user):
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     video_filename = data.get("video_filename", "")
     scene_name = data.get("scene_name", None)
     source_name = data.get("source_name", "MC_AI_Live")
@@ -157,7 +199,7 @@ def push_to_obs(user):
 @content_studio_bp.route('/api/content-studio/admin/topup', methods=['POST'])
 @admin_required
 def admin_topup_credits(user):
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     target_key = data.get("api_key", "").strip()
     target_user_id = data.get("user_id", "").strip()
     amount = data.get("amount", 0)
@@ -198,7 +240,7 @@ def admin_ai_config(user):
             "max_user_custom_avatars": content_studio_engine.settings.get("max_user_custom_avatars", 3)
         })
 
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     el_key = data.get("elevenlabs_api_key")
     hg_key = data.get("heygen_api_key")
     if el_key is not None or hg_key is not None:

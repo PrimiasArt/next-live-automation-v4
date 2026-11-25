@@ -2,8 +2,12 @@ import os
 import sys
 import time
 import subprocess
-import psutil
 from core.state import state
+
+try:
+    import psutil
+except ImportError:
+    psutil = None
 
 DEFAULT_PATHS = [
     os.getenv("STREAM_PROCESSOR_PATH", ""),
@@ -45,18 +49,67 @@ class StreamProcessManager:
 
         return None
 
+    def _get_windows_process_pid(self, target_names: tuple[str, ...]) -> int | None:
+        """Liệt kê tiến trình Windows nhanh bằng Win32 Toolhelp32 Snapshot (~15ms, không spawn subprocess)."""
+        import ctypes
+        import ctypes.wintypes as w
+
+        TH32CS_SNAPPROCESS = 0x00000002
+        INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
+
+        class PROCESSENTRY32W(ctypes.Structure):
+            _fields_ = [
+                ("dwSize", w.DWORD),
+                ("cntUsage", w.DWORD),
+                ("th32ProcessID", w.DWORD),
+                ("th32DefaultHeapID", ctypes.c_void_p),
+                ("th32ModuleID", w.DWORD),
+                ("cntThreads", w.DWORD),
+                ("th32ParentProcessID", w.DWORD),
+                ("pcPriClassBase", w.LONG),
+                ("dwFlags", w.DWORD),
+                ("szExeFile", w.WCHAR * 260),
+            ]
+
+        kernel32 = ctypes.windll.kernel32
+        snap = kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+        if not snap or snap == INVALID_HANDLE_VALUE:
+            return None
+        try:
+            entry = PROCESSENTRY32W()
+            entry.dwSize = ctypes.sizeof(PROCESSENTRY32W)
+            ok = kernel32.Process32FirstW(snap, ctypes.byref(entry))
+            while ok:
+                if entry.szExeFile.lower() in target_names:
+                    return int(entry.th32ProcessID)
+                ok = kernel32.Process32NextW(snap, ctypes.byref(entry))
+        finally:
+            kernel32.CloseHandle(snap)
+        return None
+
     def get_process_info(self) -> tuple[bool, int | None]:
         """
         Kiểm tra xem Bộ Xử Lý Luồng (Stream Processor) có đang chạy không.
         Trả về: (is_running, pid)
         """
-        for proc in psutil.process_iter(['pid', 'name']):
+        target_names = ('obs64.exe', 'obs32.exe', 'obs.exe')
+        if psutil is not None:
+            for proc in psutil.process_iter(['pid', 'name']):
+                try:
+                    name = (proc.info['name'] or '').lower()
+                    if name in target_names:
+                        return True, proc.info['pid']
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+            return False, None
+
+        if sys.platform == "win32":
             try:
-                name = (proc.info['name'] or '').lower()
-                if name in ('obs64.exe', 'obs32.exe', 'obs.exe'):
-                    return True, proc.info['pid']
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                continue
+                pid = self._get_windows_process_pid(target_names)
+                if pid is not None:
+                    return True, pid
+            except Exception:
+                pass
         return False, None
 
     def start_processor(self, minimize_to_tray: bool = True) -> dict:
@@ -99,16 +152,26 @@ class StreamProcessManager:
         Dừng tiến trình Stream Processor
         """
         is_running, pid = self.get_process_info()
-        if not is_running:
+        if not is_running or pid is None:
             return {"success": True, "message": "Stream Processor hiện không chạy."}
 
         try:
-            proc = psutil.Process(pid)
-            proc.terminate()
-            gone, alive = psutil.wait_procs([proc], timeout=3)
-            if alive:
-                for p in alive:
-                    p.kill()
+            if psutil is not None:
+                proc = psutil.Process(pid)
+                proc.terminate()
+                gone, alive = psutil.wait_procs([proc], timeout=3)
+                if alive:
+                    for p in alive:
+                        p.kill()
+            elif sys.platform == "win32":
+                kwargs = {"capture_output": True, "text": True, "timeout": 5}
+                if hasattr(subprocess, "CREATE_NO_WINDOW"):
+                    kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+                res = subprocess.run(["taskkill", "/PID", str(pid), "/F"], **kwargs)
+                if res.returncode != 0:
+                    raise RuntimeError(res.stderr.strip() or res.stdout.strip() or "taskkill failed")
+            else:
+                os.kill(pid, 15)
             state.add_log("PROCESSOR", f"🛑 [STREAM PROCESSOR] Đã đóng Bộ Xử Lý Luồng (PID: {pid}).")
             return {"success": True, "message": "Đã dừng Stream Processor thành công."}
         except Exception as e:

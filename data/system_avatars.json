@@ -1,62 +1,24 @@
 [
   {
-    "id": "Daisy-inskirt-20220818",
-    "name": "Daisy (MC Bán Hàng Trẻ Trung)",
+    "id": "sys_av_ef545b22da",
+    "name": "Huyền Châu",
     "gender": "female",
-    "preview_img": "/api/content-studio/avatars/image/sys_daisy.png",
-    "local_file": "storage/system_avatars/sys_daisy.png",
-    "style": "Trang phục công sở thanh lịch, phù hợp Shopee/TikTok",
+    "style": "Elegant",
+    "preview_img": "/api/content-studio/avatars/image/sys_av_ef545b22da.png",
+    "local_file": "F:\\SJ\\Next Live Automation v4\\storage\\system_avatars\\sys_av_ef545b22da.png",
     "is_system": true,
-    "created_at": "2026-01-01 00:00:00"
+    "user_id": "system",
+    "created_at": "2026-11-16 16:12:27"
   },
   {
-    "id": "Bryan_IT_Sitting_public",
-    "name": "Bryan (Chuyên Gia Công Nghệ)",
-    "gender": "male",
-    "preview_img": "/api/content-studio/avatars/image/sys_bryan.png",
-    "local_file": "storage/system_avatars/sys_bryan.png",
-    "style": "Áo sơ mi hiện đại, tư vấn kỹ thuật & sản phẩm",
-    "is_system": true,
-    "created_at": "2026-01-01 00:00:00"
-  },
-  {
-    "id": "Anna_public_3_20240108",
-    "name": "Anna (Host Livestream Chuyên Nghiệp)",
+    "id": "sys_av_e5b0dd879b",
+    "name": "Minh Ngọc",
     "gender": "female",
-    "preview_img": "/api/content-studio/avatars/image/sys_anna.png",
-    "local_file": "storage/system_avatars/sys_anna.png",
-    "style": "Thân thiện, tương tác tốt với khán giả livestream",
+    "style": "Casual",
+    "preview_img": "/api/content-studio/avatars/image/sys_av_e5b0dd879b.png",
+    "local_file": "F:\\SJ\\Next Live Automation v4\\storage\\system_avatars\\sys_av_e5b0dd879b.png",
     "is_system": true,
-    "created_at": "2026-01-01 00:00:00"
-  },
-  {
-    "id": "Wayne_20240711",
-    "name": "Wayne (MC Nam Lịch Lãm)",
-    "gender": "male",
-    "preview_img": "/api/content-studio/avatars/image/sys_wayne.png",
-    "local_file": "storage/system_avatars/sys_wayne.png",
-    "style": "Vest lịch sự, phù hợp sự kiện ra mắt & flash sale",
-    "is_system": true,
-    "created_at": "2026-01-01 00:00:00"
-  },
-  {
-    "id": "Susan_public_2_20240328",
-    "name": "Susan (Tư Vấn Viên Mỹ Phẩm)",
-    "gender": "female",
-    "preview_img": "/api/content-studio/avatars/image/sys_susan.png",
-    "local_file": "storage/system_avatars/sys_susan.png",
-    "style": "Nhẹ nhàng, phong thái chuyên gia sức khỏe làm đẹp",
-    "is_system": true,
-    "created_at": "2026-01-01 00:00:00"
-  },
-  {
-    "id": "Tyler_public_20240115",
-    "name": "Tyler (MC Năng Động Sôi Nổi)",
-    "gender": "male",
-    "preview_img": "/api/content-studio/avatars/image/sys_tyler.png",
-    "local_file": "storage/system_avatars/sys_tyler.png",
-    "style": "Trang phục casual, phong cách bán hàng tốc độ cao",
-    "is_system": true,
-    "created_at": "2026-01-01 00:00:00"
+    "user_id": "system",
+    "created_at": "2026-11-16 16:11:58"
   }
 ]

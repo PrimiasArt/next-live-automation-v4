@@ -14,6 +14,7 @@ from config import WEB_HOST, WEB_PORT, ADMIN_API_KEY
 from core.state import state
 from core.api_key_manager import api_key_manager
 from core.cloud_stream_engine import cloud_stream_engine
+from core.obs_engine import engine
 from core.tunnel_manager import tunnel_manager
 from web.app import create_app
 
@@ -47,32 +48,37 @@ def main():
             res = process_manager.start_processor(minimize_to_tray=True)
             if res.get("success"):
                 print(f"✅ Local Stream Processor đã khởi chạy ngầm (PID: {res.get('pid')})")
+                engine.ensure_connection(force=True)
         else:
             print(f"✅ Local Stream Processor đang chạy (PID: {pid})")
     except Exception as e:
         print(f"ℹ️  Chế độ Cloud Headless (Không cần Stream Processor màn hình): {e}")
 
-    # 2. Khởi tạo Flask App
+    # 2. Khởi tạo Flask App (đồng thời kích hoạt OBS auto-loop ngầm)
     app = create_app()
+    if engine.start_background_loop():
+        print("✅ OBS Auto-Loop Engine đã kích hoạt trên luồng nền")
 
-    # 3. Kích hoạt Tunnel tự động lấy Public Link
-    tunnel_manager.start_tunnel(local_port=WEB_PORT, on_url_ready=on_tunnel_ready)
+    # 3. Kích hoạt Tunnel tự động lấy Public Link (tắt được qua DISABLE_TUNNEL=1)
+    if not os.getenv("DISABLE_TUNNEL"):
+        tunnel_manager.start_tunnel(local_port=WEB_PORT, on_url_ready=on_tunnel_ready)
 
-    # 4. Tự động mở trình duyệt Web
-    import webbrowser
-    def _open_browser():
-        import time
-        time.sleep(1.2)
-        try:
-            webbrowser.open(f"http://localhost:{WEB_PORT}")
-        except Exception:
-            pass
-    threading.Thread(target=_open_browser, daemon=True).start()
+    # 4. Tự động mở trình duyệt Web (chỉ mở trên máy có GUI khi không tắt bằng DISABLE_BROWSER)
+    if not os.getenv("DISABLE_BROWSER") and (sys.platform == "win32" or os.getenv("DISPLAY")):
+        import webbrowser
+        def _open_browser():
+            import time
+            time.sleep(1.2)
+            try:
+                webbrowser.open(f"http://localhost:{WEB_PORT}")
+            except Exception:
+                pass
+        threading.Thread(target=_open_browser, daemon=True).start()
 
-    # 5. Chạy Web Server Flask
+    # 5. Chạy Web Server Flask (multi-threaded phục vụ nhiều khách đồng thời)
     print(f"🌐 Web Server đang lắng nghe tại: http://{WEB_HOST}:{WEB_PORT}")
     try:
-        app.run(host=WEB_HOST, port=WEB_PORT, debug=False, use_reloader=False)
+        app.run(host=WEB_HOST, port=WEB_PORT, debug=False, use_reloader=False, threaded=True)
     except (KeyboardInterrupt, SystemExit):
         print("\n🛑 Đang dừng hệ thống Next Live Automation v4...")
         tunnel_manager.stop_tunnel()

@@ -1,20 +1,27 @@
 import os
+import re
 import signal
 from flask import Blueprint, request, jsonify
+from web.routes.auth_routes import login_required, admin_required
 from core.state import state
 from core.obs_engine import engine
 
 live_bp = Blueprint('live', __name__)
 
 @live_bp.route('/api/state', methods=['GET'])
-def get_state():
+@login_required
+def get_state(user):
     return jsonify(state.to_dict())
 
 @live_bp.route('/api/order', methods=['POST'])
-def order_video():
-    data = request.json or {}
+@login_required
+def order_video(user):
+    data = request.get_json(silent=True) or {}
     video_name = data.get('video_name')
     is_ft = bool(data.get('ft', False))
+
+    if not state.current_profile:
+        return jsonify({"success": False, "message": "Hệ thống đang ở chế độ chờ (Chưa chọn Scene)"}), 400
     
     # Hỗ trợ cả trường hợp gửi số thứ tự val (1-indexed) để tương thích ngược
     raw_val = data.get('val')
@@ -38,15 +45,14 @@ def order_video():
     state.add_task(video_name, is_fast_track=is_ft)
     return jsonify({"success": True, "target": video_name, "fast_track": is_ft})
 
-import re
-
 @live_bp.route('/api/chat/webhook', methods=['POST'])
-def chat_webhook():
+@login_required
+def chat_webhook(user):
     """
     Webhook nhận bình luận từ livestream (TikTok, Shopee, FB) hoặc từ Live Chat Simulator.
     Tự động phân tích số/mã sản phẩm và kích hoạt video tương ứng!
     """
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     comment = data.get('comment', '').strip()
     author = data.get('author', 'Khách hàng')
     mode = data.get('mode', 'queue') # 'queue' hoặc 'fast_track'
@@ -103,21 +109,24 @@ def chat_webhook():
     })
 
 @live_bp.route('/api/queue/remove', methods=['POST'])
-def remove_queue_item():
-    data = request.json or {}
+@login_required
+def remove_queue_item(user):
+    data = request.get_json(silent=True) or {}
     index = data.get('index')
     if index is not None and state.remove_task(int(index)):
         return jsonify({"success": True})
     return jsonify({"success": False, "message": "Index hàng đợi không hợp lệ"}), 400
 
 @live_bp.route('/api/queue/clear', methods=['POST'])
-def clear_all_queue():
+@login_required
+def clear_all_queue(user):
     state.clear_queue()
     return jsonify({"success": True})
 
 @live_bp.route('/api/obs/sources', methods=['GET'])
 @live_bp.route('/api/processor/sources', methods=['GET'])
-def get_obs_sources():
+@login_required
+def get_obs_sources(user):
     scene_name = request.args.get('scene')
     sources = engine.get_scene_sources(scene_name)
     return jsonify({
@@ -127,8 +136,9 @@ def get_obs_sources():
 
 @live_bp.route('/api/obs/bulk_create', methods=['POST'])
 @live_bp.route('/api/processor/bulk_create', methods=['POST'])
-def bulk_create_obs_sources():
-    data = request.json or {}
+@login_required
+def bulk_create_obs_sources(user):
+    data = request.get_json(silent=True) or {}
     folder_path = data.get('folder_path', '').strip()
     source_type = data.get('source_type', 'ffmpeg_source')
     file_pattern = data.get('file_pattern', '').strip()
@@ -149,7 +159,8 @@ def bulk_create_obs_sources():
     return jsonify(res)
 
 @live_bp.route('/api/terminate', methods=['POST'])
-def terminate():
+@admin_required
+def terminate(admin_user):
     state.add_log("SYSTEM", "🛑 Đã nhận lệnh TERMINATE - Đang đóng tiến trình...")
     os.kill(os.getpid(), signal.SIGTERM)
     return jsonify({"success": True})

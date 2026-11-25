@@ -17,73 +17,14 @@ except Exception:
     HEYGEN_API_KEY = ""
 
 from core.state import state
+from core.runtime_utils import resolve_ffmpeg_bin, atomic_write_json
 
 AI_SETTINGS_FILE = os.path.join(DATA_DIR, "ai_settings.json")
 SYSTEM_AVATARS_FILE = os.path.join(DATA_DIR, "system_avatars.json")
 USER_AVATARS_FILE = os.path.join(DATA_DIR, "user_avatars.json")
 SYSTEM_AVATARS_DIR = os.path.join(STORAGE_DIR, "system_avatars")
 
-# Danh sách Giọng đọc tuyển chọn (Curated Voices với hỗ trợ Tiếng Việt & Đa ngữ đỉnh cao)
-CURATED_VOICES = [
-    {
-        "id": "21m00Tcm4TlvDq8ikWAM",
-        "name": "Rachel (Nữ - Truyền cảm & Thân thiện)",
-        "language": "Tiếng Việt / Đa ngữ",
-        "gender": "female",
-        "style": "Kể chuyện, Giới thiệu sản phẩm",
-        "preview_url": "/api/content-studio/voices/sample/21m00Tcm4TlvDq8ikWAM"
-    },
-    {
-        "id": "AZnzlk1XvdvUeBnXmlld",
-        "name": "Domi (Nữ - Tươi vui & Tự tin)",
-        "language": "Tiếng Việt / Đa ngữ",
-        "gender": "female",
-        "style": "Flash Sale, Chốt đơn livestream",
-        "preview_url": "/api/content-studio/voices/sample/AZnzlk1XvdvUeBnXmlld"
-    },
-    {
-        "id": "ErXwobaYiN019PkySvjV",
-        "name": "Antoni (Nam - Trầm ấm & Chuyên nghiệp)",
-        "language": "Tiếng Việt / Đa ngữ",
-        "gender": "male",
-        "style": "Tin tức, Đánh giá công nghệ, Review",
-        "preview_url": "/api/content-studio/voices/sample/ErXwobaYiN019PkySvjV"
-    },
-    {
-        "id": "VR6AewLTigWG4xSOukaG",
-        "name": "Arnold (Nam - Năng động & Quyết đoán)",
-        "language": "Tiếng Việt / Đa ngữ",
-        "gender": "male",
-        "style": "Khuyến mãi, Livestream bán hàng",
-        "preview_url": "/api/content-studio/voices/sample/VR6AewLTigWG4xSOukaG"
-    },
-    {
-        "id": "MF3mGyEYCl7XYWbV9V6O",
-        "name": "Elli (Nữ - Dịu dàng & Tự nhiên)",
-        "language": "Tiếng Việt / Đa ngữ",
-        "gender": "female",
-        "style": "Thời trang, Mỹ phẩm, Chăm sóc sắc đẹp",
-        "preview_url": "/api/content-studio/voices/sample/MF3mGyEYCl7XYWbV9V6O"
-    },
-    {
-        "id": "pNInz6obpgDQGcFmaJgB",
-        "name": "Adam (Nam - Giọng chuẩn thương mại)",
-        "language": "Tiếng Việt / Đa ngữ",
-        "gender": "male",
-        "style": "Quảng cáo TVC, Bán hàng cao cấp",
-        "preview_url": "/api/content-studio/voices/sample/pNInz6obpgDQGcFmaJgB"
-    }
-]
-
-# Upstream Voice Previews Cache
-VOICE_PREVIEWS = {
-    "21m00Tcm4TlvDq8ikWAM": "https://storage.googleapis.com/eleven-public-prod/previews/voices/21m00Tcm4TlvDq8ikWAM/preview.mp3",
-    "AZnzlk1XvdvUeBnXmlld": "https://storage.googleapis.com/eleven-public-prod/previews/voices/AZnzlk1XvdvUeBnXmlld/preview.mp3",
-    "ErXwobaYiN019PkySvjV": "https://storage.googleapis.com/eleven-public-prod/previews/voices/ErXwobaYiN019PkySvjV/preview.mp3",
-    "VR6AewLTigWG4xSOukaG": "https://storage.googleapis.com/eleven-public-prod/previews/voices/VR6AewLTigWG4xSOukaG/preview.mp3",
-    "MF3mGyEYCl7XYWbV9V6O": "https://storage.googleapis.com/eleven-public-prod/previews/voices/MF3mGyEYCl7XYWbV9V6O/preview.mp3",
-    "pNInz6obpgDQGcFmaJgB": "https://storage.googleapis.com/eleven-public-prod/previews/voices/pNInz6obpgDQGcFmaJgB/preview.mp3",
-}
+ELEVENLABS_API_BASE = "https://api.elevenlabs.io/v1"
 
 # Danh sách MC Ảo tuyển chọn (Curated Avatars phong cách Livestream)
 CURATED_AVATARS = [
@@ -152,12 +93,17 @@ class ContentStudioEngine:
         os.makedirs(self.system_avatars_dir, exist_ok=True)
         self.voice_samples_dir = os.path.join(STORAGE_DIR, "voice_samples")
         os.makedirs(self.voice_samples_dir, exist_ok=True)
-        self.voice_preview_cache: Dict[str, str] = dict(VOICE_PREVIEWS)
+        self.voice_preview_cache: Dict[str, str] = {}
+        self._voices_cache: List[Dict[str, Any]] = []
+        self._voices_cache_meta: Dict[str, Any] = {}
+        self._voices_cache_ts: float = 0.0
+        self._voices_cache_key: Optional[str] = None
+        self._voices_cache_ttl: float = 300.0
         self.system_avatars: List[Dict[str, Any]] = []
         self.user_avatars: Dict[str, List[Dict[str, Any]]] = {}
         self.tasks_file = os.path.join(DATA_DIR, "content_studio_tasks.json")
         self.tasks: Dict[str, Dict[str, Any]] = {}
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
         self.load_settings()
         self.load_tasks()
         self.load_avatars()
@@ -200,15 +146,15 @@ class ContentStudioEngine:
 
     def save_system_avatars(self):
         try:
-            with open(SYSTEM_AVATARS_FILE, 'w', encoding='utf-8') as f:
-                json.dump(self.system_avatars, f, ensure_ascii=False, indent=2)
+            with self.lock:
+                atomic_write_json(SYSTEM_AVATARS_FILE, self.system_avatars)
         except Exception as e:
             print(f"Lỗi lưu system_avatars.json: {e}")
 
     def save_user_avatars(self):
         try:
-            with open(USER_AVATARS_FILE, 'w', encoding='utf-8') as f:
-                json.dump(self.user_avatars, f, ensure_ascii=False, indent=2)
+            with self.lock:
+                atomic_write_json(USER_AVATARS_FILE, self.user_avatars)
         except Exception as e:
             print(f"Lỗi lưu user_avatars.json: {e}")
 
@@ -231,15 +177,15 @@ class ContentStudioEngine:
 
     def save_tasks(self):
         try:
-            with open(self.tasks_file, 'w', encoding='utf-8') as f:
-                json.dump(self.tasks, f, ensure_ascii=False, indent=2)
-        except Exception as e:
+            with self.lock:
+                atomic_write_json(self.tasks_file, self.tasks)
+        except Exception:
             pass
 
     def save_settings(self):
         try:
-            with open(AI_SETTINGS_FILE, 'w', encoding='utf-8') as f:
-                json.dump(self.settings, f, ensure_ascii=False, indent=2)
+            with self.lock:
+                atomic_write_json(AI_SETTINGS_FILE, self.settings)
         except Exception as e:
             print(f"Lỗi lưu ai_settings.json: {e}")
 
@@ -249,9 +195,16 @@ class ContentStudioEngine:
             "heygen": self.settings.get("heygen_api_key") or os.getenv("HEYGEN_API_KEY", "")
         }
 
+    def _invalidate_voices_cache(self):
+        self._voices_cache = []
+        self._voices_cache_meta = {}
+        self._voices_cache_ts = 0.0
+        self._voices_cache_key = None
+
     def set_api_keys(self, elevenlabs_key: Optional[str] = None, heygen_key: Optional[str] = None, supabase_url: Optional[str] = None, supabase_anon_key: Optional[str] = None) -> bool:
         if elevenlabs_key is not None:
             self.settings["elevenlabs_api_key"] = elevenlabs_key.strip()
+            self._invalidate_voices_cache()
         if heygen_key is not None:
             self.settings["heygen_api_key"] = heygen_key.strip()
         if supabase_url is not None:
@@ -362,118 +315,346 @@ class ContentStudioEngine:
         except Exception as e:
             return {"success": False, "message": f"Lỗi kết nối Supabase Cloud: {str(e)}"}
 
+    def _extract_elevenlabs_error(self, response) -> str:
+        try:
+            body = response.json()
+            detail = body.get("detail")
+            if isinstance(detail, dict):
+                return detail.get("message") or str(detail)
+            if isinstance(detail, str):
+                return detail
+        except Exception:
+            pass
+        return (response.text or "")[:160] or f"HTTP {response.status_code}"
+
+    def _resolve_upstream_voice_preview(self, voice_id: str, headers: Dict[str, str]) -> Optional[str]:
+        cached = self.voice_preview_cache.get(voice_id)
+        if cached and cached.startswith("http"):
+            return cached
+        try:
+            res = requests.get(f"{ELEVENLABS_API_BASE}/voices/{voice_id}", headers=headers, timeout=8)
+            if res.status_code == 200:
+                v = res.json()
+                preview = v.get("preview_url") or ""
+                if not preview:
+                    for item in (v.get("verified_languages") or []):
+                        if isinstance(item, dict) and item.get("preview_url"):
+                            preview = item["preview_url"]
+                            break
+                if preview and preview.startswith("http"):
+                    self.voice_preview_cache[voice_id] = preview
+                    return preview
+        except Exception:
+            pass
+        return None
+
     def get_voice_sample(self, voice_id: str) -> Optional[str]:
-        """Lấy đường dẫn file audio nghe thử giọng nói cục bộ (Proxy & Cache an toàn, ẩn nguồn)"""
+        """Lấy file audio nghe thử trực tiếp từ preview_url thật của ElevenLabs (có cache local)."""
+        if not voice_id or not re.match(r"^[A-Za-z0-9_-]{4,64}$", voice_id):
+            return None
+
         sample_path = os.path.join(self.voice_samples_dir, f"{voice_id}.mp3")
         if os.path.exists(sample_path) and os.path.getsize(sample_path) > 0:
             return sample_path
 
-        # 1. Thử tải từ URL cache nếu có
-        upstream_url = self.voice_preview_cache.get(voice_id)
-        if upstream_url and upstream_url.startswith("http"):
+        keys = self.get_api_keys()
+        el_key = (keys.get("elevenlabs") or "").strip()
+        headers = {"xi-api-key": el_key} if el_key else {}
+
+        # 1. Lấy từ preview_url chính chủ của ElevenLabs (cache hoặc truy vấn /v1/voices/{id})
+        upstream_url = self._resolve_upstream_voice_preview(voice_id, headers)
+        if upstream_url:
             try:
-                r = requests.get(upstream_url, timeout=10)
-                if r.status_code == 200 and len(r.content) > 1000:
+                r = requests.get(upstream_url, timeout=12)
+                if r.status_code == 200 and len(r.content) > 512:
                     with open(sample_path, 'wb') as f:
                         f.write(r.content)
                     return sample_path
             except Exception as e:
-                print(f"Lỗi proxy voice sample: {e}")
+                print(f"Lỗi tải audio preview ElevenLabs ({voice_id}): {e}")
 
-        # 2. Thử tổng hợp qua TTS API nếu có key
-        keys = self.get_api_keys()
-        el_key = keys.get("elevenlabs")
+        # 2. Chỉ tổng hợp mẫu TTS nếu có ElevenLabs API Key hợp lệ và không có preview_url
         if el_key:
             try:
-                el_url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+                el_url = f"{ELEVENLABS_API_BASE}/text-to-speech/{voice_id}"
                 el_res = requests.post(
                     el_url,
                     headers={"xi-api-key": el_key, "Content-Type": "application/json"},
                     json={
-                        "text": "Xin chào! Đây là bản nghe thử giọng đọc AI Studio bản quyền.",
+                        "text": "Xin chào! Đây là bản nghe thử giọng đọc trực tiếp từ ElevenLabs API.",
                         "model_id": "eleven_multilingual_v2"
                     },
                     timeout=15
                 )
-                if el_res.status_code == 200:
+                if el_res.status_code == 200 and len(el_res.content) > 512:
                     with open(sample_path, 'wb') as f:
                         f.write(el_res.content)
                     return sample_path
             except Exception as e:
-                print(f"Lỗi TTS preview: {e}")
+                print(f"Lỗi TTS preview ElevenLabs ({voice_id}): {e}")
 
         return None
 
-    def get_voices(self) -> List[Dict[str, Any]]:
-        """Lấy toàn bộ danh sách giọng đọc từ ElevenLabs API: cả giọng premade và giọng custom/cloned của tài khoản"""
-        keys = self.get_api_keys()
-        el_key = keys.get("elevenlabs")
-        
-        # Nếu có API Key thật, fetch toàn bộ giọng từ tài khoản ElevenLabs
-        if el_key:
-            try:
-                res = requests.get(
-                    "https://api.elevenlabs.io/v1/voices",
-                    headers={"xi-api-key": el_key},
-                    timeout=8
-                )
-                if res.status_code == 200:
-                    api_voices = res.json().get("voices", [])
-                    custom_voices = []
-                    premade_voices = []
-                    
-                    curated_map = {v["id"]: v for v in CURATED_VOICES}
-                    
-                    for v in api_voices:
-                        vid = v.get("voice_id")
-                        category = (v.get("category") or "premade").lower()
-                        # Nhận diện giọng custom / cloned của tài khoản
-                        is_custom = category in ["cloned", "generated", "professional", "custom"] or (category != "premade")
-                        
-                        labels = v.get("labels") or {}
-                        gender = labels.get("gender") or "female"
-                        accent = labels.get("accent") or labels.get("language") or ("Tiếng Việt / Đa ngữ" if is_custom else "Đa ngữ")
-                        desc = labels.get("description") or labels.get("use case") or v.get("description") or ("Giọng Custom độc quyền" if is_custom else "Giọng đọc AI Studio")
-                        
-                        upstream_preview = v.get("preview_url")
-                        if upstream_preview:
-                            self.voice_preview_cache[vid] = upstream_preview
-                        
-                        clean_category = "custom" if is_custom else "studio"
-                        
-                        if vid in curated_map:
-                            v_item = dict(curated_map[vid])
-                            v_item["preview_url"] = f"/api/content-studio/voices/sample/{vid}"
-                            v_item["is_custom"] = is_custom
-                            v_item["category"] = clean_category
-                        else:
-                            v_item = {
-                                "id": vid,
-                                "name": v.get("name"),
-                                "category": clean_category,
-                                "is_custom": is_custom,
-                                "language": accent,
-                                "gender": gender,
-                                "style": desc,
-                                "preview_url": f"/api/content-studio/voices/sample/{vid}"
-                            }
-                            
-                        if is_custom:
-                            custom_voices.append(v_item)
-                        else:
-                            premade_voices.append(v_item)
-                    
-                    # Sắp xếp: Giọng Custom lên đầu tiên, kế tiếp là các giọng Curated & Premade
-                    known_ids = {v["id"] for v in custom_voices} | {v["id"] for v in premade_voices}
-                    fallback_curated = [{**v, "is_custom": False, "category": "studio"} for v in CURATED_VOICES if v["id"] not in known_ids]
-                    
-                    result = custom_voices + fallback_curated + premade_voices
-                    return result
-            except Exception as e:
-                print(f"Voice fetch error, fallback to curated: {e}")
+    def _normalize_elevenlabs_voice(self, v: Dict[str, Any], authenticated: bool) -> Dict[str, Any]:
+        vid = (v.get("voice_id") or "").strip()
+        raw_category = (v.get("category") or "premade").strip().lower()
+        is_custom = raw_category in ("cloned", "generated", "professional", "custom") or (raw_category != "premade")
 
-        # Fallback danh sách Curated
-        return [{**v, "is_custom": False, "category": "studio"} for v in CURATED_VOICES]
+        labels = v.get("labels") if isinstance(v.get("labels"), dict) else {}
+        gender = (labels.get("gender") or v.get("gender") or "").strip().lower()
+        accent = (labels.get("accent") or v.get("accent") or "").strip()
+        age = (labels.get("age") or v.get("age") or "").strip()
+        use_case = (labels.get("use_case") or labels.get("use case") or v.get("use_case") or "").strip()
+        descriptive = (labels.get("descriptive") or labels.get("description") or "").strip()
+        primary_lang = (labels.get("language") or v.get("language") or "").strip().lower()
+
+        verified_langs: List[str] = []
+        if primary_lang:
+            verified_langs.append(primary_lang)
+        for item in (v.get("verified_languages") or []):
+            if isinstance(item, dict):
+                lcode = (item.get("language") or "").strip().lower()
+                if lcode and lcode not in verified_langs:
+                    verified_langs.append(lcode)
+
+        upstream_preview = (v.get("preview_url") or "").strip()
+        if not upstream_preview:
+            for item in (v.get("verified_languages") or []):
+                if isinstance(item, dict) and item.get("preview_url"):
+                    upstream_preview = item["preview_url"].strip()
+                    break
+
+        if upstream_preview and vid:
+            self.voice_preview_cache[vid] = upstream_preview
+
+        description = (v.get("description") or "").strip()
+        style_tokens = [
+            tok.replace("_", " ").strip()
+            for tok in (descriptive, use_case, accent, age)
+            if tok and tok.strip()
+        ]
+        style = " • ".join(style_tokens) if style_tokens else (description or raw_category)
+        lang_label = ", ".join(x.upper() for x in verified_langs[:5]) if verified_langs else "MULTILINGUAL"
+
+        has_preview = bool(upstream_preview or authenticated)
+        return {
+            "id": vid,
+            "name": (v.get("name") or vid).strip(),
+            "category": "custom" if is_custom else raw_category,
+            "raw_category": raw_category,
+            "is_custom": is_custom,
+            "language": lang_label,
+            "languages": verified_langs,
+            "gender": gender,
+            "accent": accent,
+            "age": age,
+            "use_case": use_case,
+            "style": style,
+            "description": description,
+            "source": "elevenlabs_account" if authenticated else "elevenlabs_public",
+            "preview_url": f"/api/content-studio/voices/sample/{vid}" if (vid and has_preview) else "",
+            "upstream_preview_url": upstream_preview,
+        }
+
+    def fetch_voices_from_elevenlabs(self, force_refresh: bool = False) -> Dict[str, Any]:
+        """Cào danh sách giọng đọc trực tiếp từ ElevenLabs API (/v1/voices), không dùng giọng ảo cứng."""
+        el_key = (self.get_api_keys().get("elevenlabs") or "").strip()
+        authenticated = bool(el_key)
+
+        if (
+            not force_refresh
+            and self._voices_cache
+            and self._voices_cache_key == el_key
+            and (time.time() - self._voices_cache_ts) < self._voices_cache_ttl
+        ):
+            return {
+                "success": True,
+                "voices": list(self._voices_cache),
+                "count": len(self._voices_cache),
+                "cached": True,
+                **self._voices_cache_meta,
+            }
+
+        headers = {"xi-api-key": el_key} if el_key else {}
+        try:
+            res = requests.get(
+                f"{ELEVENLABS_API_BASE}/voices",
+                params={"show_legacy": "true"},
+                headers=headers,
+                timeout=10
+            )
+            if res.status_code != 200:
+                err_msg = self._extract_elevenlabs_error(res)
+                return {
+                    "success": False,
+                    "voices": [],
+                    "count": 0,
+                    "source": "elevenlabs_error",
+                    "authenticated": authenticated,
+                    "message": f"ElevenLabs API lỗi ({res.status_code}): {err_msg}"
+                }
+
+            api_voices = res.json().get("voices") or []
+            custom_voices: List[Dict[str, Any]] = []
+            library_voices: List[Dict[str, Any]] = []
+
+            for v in api_voices:
+                norm = self._normalize_elevenlabs_voice(v, authenticated=authenticated)
+                if not norm["id"]:
+                    continue
+                if norm["is_custom"]:
+                    custom_voices.append(norm)
+                else:
+                    library_voices.append(norm)
+
+            result = custom_voices + library_voices
+            synced_at = time.strftime("%Y-%m-%d %H:%M:%S")
+            source = "elevenlabs_account" if authenticated else "elevenlabs_public"
+            meta = {
+                "source": source,
+                "authenticated": authenticated,
+                "synced_at": synced_at,
+                "custom_count": len(custom_voices),
+                "premade_count": len(library_voices),
+            }
+            self._voices_cache = list(result)
+            self._voices_cache_meta = dict(meta)
+            self._voices_cache_ts = time.time()
+            self._voices_cache_key = el_key
+
+            return {
+                "success": True,
+                "voices": result,
+                "count": len(result),
+                "cached": False,
+                **meta,
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "voices": [],
+                "count": 0,
+                "source": "elevenlabs_error",
+                "authenticated": authenticated,
+                "message": f"Không thể kết nối ElevenLabs API: {str(e)}"
+            }
+
+    def get_voices(self, force_refresh: bool = False) -> List[Dict[str, Any]]:
+        """Trả về danh sách giọng đọc lấy trực tiếp từ ElevenLabs API (tương thích backward)."""
+        return self.fetch_voices_from_elevenlabs(force_refresh=force_refresh).get("voices", [])
+
+    def search_elevenlabs_library(
+        self,
+        search: str = "",
+        language: str = "",
+        gender: str = "",
+        category: str = "",
+        page_size: int = 24
+    ) -> Dict[str, Any]:
+        """Tìm kiếm / cào giọng đọc trực tiếp từ ElevenLabs Voice Library (/v1/shared-voices)."""
+        el_key = (self.get_api_keys().get("elevenlabs") or "").strip()
+        authenticated = bool(el_key)
+        headers = {"xi-api-key": el_key} if el_key else {}
+
+        # ElevenLabs cho phép tối đa 3 shared-voices khi chưa đăng nhập API key
+        effective_page_size = min(max(int(page_size or 24), 1), 100) if authenticated else 3
+        params: Dict[str, Any] = {"page_size": effective_page_size}
+        if search and search.strip():
+            params["search"] = search.strip()
+        if language and language.strip():
+            params["language"] = language.strip().lower()
+        if gender and gender.strip().lower() in ("male", "female", "neutral"):
+            params["gender"] = gender.strip().lower()
+        if category and category.strip():
+            params["category"] = category.strip().lower()
+
+        try:
+            res = requests.get(
+                f"{ELEVENLABS_API_BASE}/shared-voices",
+                params=params,
+                headers=headers,
+                timeout=10
+            )
+            if res.status_code != 200:
+                err_msg = self._extract_elevenlabs_error(res)
+                return {
+                    "success": False,
+                    "voices": [],
+                    "authenticated": authenticated,
+                    "requires_api_key": not authenticated,
+                    "message": f"ElevenLabs Shared Library ({res.status_code}): {err_msg}"
+                }
+
+            raw_voices = res.json().get("voices") or []
+            items: List[Dict[str, Any]] = []
+            for v in raw_voices:
+                vid = (v.get("voice_id") or "").strip()
+                if not vid:
+                    continue
+                preview = (v.get("preview_url") or "").strip()
+                if preview:
+                    self.voice_preview_cache[vid] = preview
+                lang_code = (v.get("language") or "").strip().lower()
+                accent = (v.get("accent") or "").strip()
+                use_case = (v.get("use_case") or "").strip()
+                desc = (v.get("description") or "").strip()
+                style_parts = [p.replace("_", " ") for p in (accent, use_case, v.get("age") or "") if p]
+                items.append({
+                    "id": vid,
+                    "public_owner_id": (v.get("public_owner_id") or "").strip(),
+                    "name": (v.get("name") or vid).strip(),
+                    "category": (v.get("category") or "shared").lower(),
+                    "gender": (v.get("gender") or "").lower(),
+                    "language": lang_code.upper() if lang_code else "MULTI",
+                    "languages": [lang_code] if lang_code else [],
+                    "accent": accent,
+                    "style": " • ".join(style_parts) if style_parts else desc,
+                    "description": desc,
+                    "free_users_allowed": bool(v.get("free_users_allowed", True)),
+                    "usage_count_1y": v.get("usage_character_count_1y") or 0,
+                    "source": "elevenlabs_library",
+                    "preview_url": f"/api/content-studio/voices/sample/{vid}" if preview else "",
+                    "upstream_preview_url": preview,
+                })
+
+            return {
+                "success": True,
+                "voices": items,
+                "count": len(items),
+                "has_more": bool(res.json().get("has_more")),
+                "authenticated": authenticated,
+                "requires_api_key": not authenticated,
+                "source": "elevenlabs_library",
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "voices": [],
+                "authenticated": authenticated,
+                "requires_api_key": not authenticated,
+                "message": f"Lỗi kết nối ElevenLabs Voice Library: {str(e)}"
+            }
+
+    def add_library_voice(self, public_owner_id: str, voice_id: str, new_name: str = "") -> Dict[str, Any]:
+        """Thêm giọng đọc từ ElevenLabs Voice Library vào tài khoản ElevenLabs để sử dụng TTS."""
+        el_key = (self.get_api_keys().get("elevenlabs") or "").strip()
+        if not el_key:
+            return {"success": False, "message": "Cần cấu hình ElevenLabs API Key (Admin -> API Platforms) để thêm giọng từ Voice Library."}
+        if not public_owner_id or not voice_id:
+            return {"success": False, "message": "Thiếu public_owner_id hoặc voice_id."}
+        try:
+            res = requests.post(
+                f"{ELEVENLABS_API_BASE}/voices/add/{public_owner_id}/{voice_id}",
+                headers={"xi-api-key": el_key, "Content-Type": "application/json"},
+                json={"new_name": (new_name or f"Voice_{voice_id[:8]}").strip(), "bookmarked": True},
+                timeout=10
+            )
+            if res.status_code == 200:
+                self._invalidate_voices_cache()
+                return {"success": True, "voice_id": res.json().get("voice_id") or voice_id, "message": "Đã thêm giọng đọc vào tài khoản ElevenLabs!"}
+            return {"success": False, "message": f"ElevenLabs ({res.status_code}): {self._extract_elevenlabs_error(res)}"}
+        except Exception as e:
+            return {"success": False, "message": f"Lỗi thêm giọng từ Voice Library: {str(e)}"}
 
     def get_avatars(self) -> List[Dict[str, Any]]:
         """Lấy danh sách người mẫu mặc định (tương thích backward)"""
@@ -685,9 +866,9 @@ class ContentStudioEngine:
         with self.lock:
             return self.tasks.get(task_id)
 
-    def list_user_tasks(self, user_id: str) -> List[Dict[str, Any]]:
+    def list_user_tasks(self, user_id: str, is_admin: bool = False) -> List[Dict[str, Any]]:
         with self.lock:
-            user_tasks = [t for t in self.tasks.values() if t.get("user_id") == user_id or user_id == "admin"]
+            user_tasks = [t for t in self.tasks.values() if is_admin or t.get("user_id") == user_id or user_id == "admin"]
             user_tasks.sort(key=lambda x: x.get("created_at", ""), reverse=True)
             return user_tasks
 
@@ -893,7 +1074,7 @@ class ContentStudioEngine:
                 "progress_pct": 100,
                 "current_step": "🎉 Hoàn tất! Video đã sẵn sàng phát sóng.",
                 "video_filename": final_video_filename,
-                "video_url": f"/api/media/play/{final_video_filename}",
+                "video_url": f"/api/media/file/{final_video_filename}",
                 "completed_at": time.strftime("%Y-%m-%d %H:%M:%S")
             })
 
@@ -910,10 +1091,7 @@ class ContentStudioEngine:
 
     def _generate_studio_placeholder_video(self, output_path: str, title: str, script: str, aspect_ratio: str = "9:16", avatar_id: Optional[str] = None, user_id: Optional[str] = None, audio_path: Optional[str] = None):
         """Tạo video studio chuyên nghiệp với MC AI / Người Mẫu bằng FFmpeg"""
-        bin_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bin")
-        ffmpeg_bin = os.path.join(bin_dir, "ffmpeg.exe") if os.name == 'nt' else "ffmpeg"
-        if not os.path.exists(ffmpeg_bin):
-            ffmpeg_bin = "ffmpeg"
+        ffmpeg_bin = resolve_ffmpeg_bin()
 
         width, height = (1080, 1920) if aspect_ratio == "9:16" else (1920, 1080)
         duration = 10 # 10 giây demo

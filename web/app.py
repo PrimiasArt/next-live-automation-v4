@@ -2,6 +2,7 @@ import os
 from flask import Flask, render_template
 from flask_cors import CORS
 from core.state import state
+from core.obs_engine import engine
 from web.routes.auth_routes import auth_bp
 from web.routes.admin_routes import admin_bp
 from web.routes.media_routes import media_bp
@@ -38,5 +39,8 @@ def create_app():
     @app.route('/')
     def index():
         return render_template("index.html")
+
+    # Khởi chạy vòng lặp tự động phát video OBS trên luồng nền (không chạy trên Vercel Serverless)
+    engine.start_background_loop()
 
     return app

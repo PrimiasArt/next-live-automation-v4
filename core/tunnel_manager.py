@@ -1,6 +1,8 @@
 import os
 import re
 import sys
+import shutil
+import platform
 import atexit
 import threading
 import subprocess
@@ -9,9 +11,28 @@ from core.state import state
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BIN_DIR = os.path.join(BASE_DIR, "bin")
-CLOUDFLARED_PATH = os.path.join(BIN_DIR, "cloudflared.exe")
 
-CLOUDFLARED_DOWNLOAD_URL = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe"
+
+def _cloudflared_binary_spec() -> tuple[str, str]:
+    arch = platform.machine().lower()
+    is_arm = arch in ("aarch64", "arm64")
+    if sys.platform == "win32":
+        return (
+            os.path.join(BIN_DIR, "cloudflared.exe"),
+            "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe",
+        )
+    if sys.platform == "darwin":
+        suffix = "darwin-arm64" if is_arm else "darwin-amd64"
+        return (
+            os.path.join(BIN_DIR, "cloudflared"),
+            f"https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-{suffix}.tgz",
+        )
+    linux_bin = "cloudflared-linux-arm64" if is_arm else "cloudflared-linux-amd64"
+    return (
+        os.path.join(BIN_DIR, "cloudflared"),
+        f"https://github.com/cloudflare/cloudflared/releases/latest/download/{linux_bin}",
+    )
+
 
 class TunnelManager:
     def __init__(self):
@@ -19,20 +40,33 @@ class TunnelManager:
         self.public_url = None
 
     def ensure_cloudflared(self) -> str:
-        """Đảm bảo file cloudflared.exe đã sẵn sàng, nếu chưa có thì tự tải"""
+        """Đảm bảo cloudflared đã sẵn sàng (đa nền tảng Windows / Linux), nếu chưa có thì tự tải."""
+        system_bin = shutil.which("cloudflared")
+        if system_bin:
+            return system_bin
+
+        local_path, download_url = _cloudflared_binary_spec()
+        if download_url.endswith(".tgz"):
+            return None
+
         os.makedirs(BIN_DIR, exist_ok=True)
-        if not os.path.exists(CLOUDFLARED_PATH) or os.path.getsize(CLOUDFLARED_PATH) < 1000000:
+        if not os.path.exists(local_path) or os.path.getsize(local_path) < 1000000:
             print("📦 Đang tự động tải bộ công cụ Cloudflare Tunnel (chỉ tải 1 lần duy nhất)...")
             try:
-                urllib.request.urlretrieve(CLOUDFLARED_DOWNLOAD_URL, CLOUDFLARED_PATH)
+                urllib.request.urlretrieve(download_url, local_path)
+                if sys.platform != "win32":
+                    os.chmod(local_path, 0o755)
                 print("✅ Đã tải xong Cloudflare Tunnel!")
             except Exception as e:
                 print(f"❌ Lỗi tải cloudflared: {e}")
                 return None
-        return CLOUDFLARED_PATH
+        return local_path
 
     def start_tunnel(self, local_port: int = 5000, on_url_ready=None):
-        """Khởi chạy Cloudflare Tunnel ngầm và tự động lấy Public URL HTTPS"""
+        """Khởi chạy Cloudflare Tunnel ngầm và tự động lấy Public URL HTTPS."""
+        if os.getenv("DISABLE_TUNNEL") or os.getenv("VERCEL"):
+            return
+
         cf_path = self.ensure_cloudflared()
         if not cf_path:
             return

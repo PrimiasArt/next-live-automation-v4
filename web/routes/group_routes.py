@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from web.routes.auth_routes import login_required
 from core.state import state
 from core.obs_engine import engine
 from core.group_manager import group_manager
@@ -6,7 +7,8 @@ from core.group_manager import group_manager
 group_bp = Blueprint('group', __name__)
 
 @group_bp.route('/api/groups', methods=['GET'])
-def get_groups():
+@login_required
+def get_groups(user):
     groups = group_manager.get_all()
     return jsonify({
         "success": True,
@@ -15,30 +17,34 @@ def get_groups():
     })
 
 @group_bp.route('/api/groups/add', methods=['POST'])
-def add_group():
-    data = request.json or {}
+@login_required
+def add_group(user):
+    data = request.get_json(silent=True) or {}
     name = data.get('name', '').strip()
     res = group_manager.add_group(name)
     return jsonify(res)
 
 @group_bp.route('/api/groups/rename', methods=['POST'])
-def rename_group():
-    data = request.json or {}
+@login_required
+def rename_group(user):
+    data = request.get_json(silent=True) or {}
     group_id = data.get('group_id')
     name = data.get('name', '').strip()
     res = group_manager.rename_group(group_id, name)
     return jsonify(res)
 
 @group_bp.route('/api/groups/delete', methods=['POST'])
-def delete_group():
-    data = request.json or {}
+@login_required
+def delete_group(user):
+    data = request.get_json(silent=True) or {}
     group_id = data.get('group_id')
     res = group_manager.delete_group(group_id, engine=engine)
     return jsonify(res)
 
 @group_bp.route('/api/groups/source/add', methods=['POST'])
-def add_source():
-    data = request.json or {}
+@login_required
+def add_source(user):
+    data = request.get_json(silent=True) or {}
     group_id = data.get('group_id')
     name = data.get('name', '').strip()
     thumb = data.get('thumb', '')
@@ -46,16 +52,18 @@ def add_source():
     return jsonify(res)
 
 @group_bp.route('/api/groups/source/delete', methods=['POST'])
-def delete_source():
-    data = request.json or {}
+@login_required
+def delete_source(user):
+    data = request.get_json(silent=True) or {}
     group_id = data.get('group_id')
     name = data.get('name', '').strip()
     res = group_manager.delete_source(group_id, name, engine=engine)
     return jsonify(res)
 
 @group_bp.route('/api/groups/source/upload_thumb', methods=['POST'])
-def upload_thumb():
-    data = request.json or {}
+@login_required
+def upload_thumb(user):
+    data = request.get_json(silent=True) or {}
     group_id = data.get('group_id')
     name = data.get('name', '').strip()
     thumb = data.get('thumb', '')
@@ -63,8 +71,9 @@ def upload_thumb():
     return jsonify(res)
 
 @group_bp.route('/api/groups/source/toggle', methods=['POST'])
-def toggle_source():
-    data = request.json or {}
+@login_required
+def toggle_source(user):
+    data = request.get_json(silent=True) or {}
     group_id = data.get('group_id')
     name = data.get('name', '').strip()
 

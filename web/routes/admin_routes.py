@@ -49,7 +49,7 @@ def generate_key_code(admin_user):
 @admin_required
 def create_api_key(admin_user):
     """Cấp mã khóa phát sóng mới và đồng bộ trực tiếp lên Supabase Cloud"""
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     res = api_key_manager.create_client_key(
         name=data.get('name', ''),
         custom_key=data.get('custom_key', None),
@@ -65,7 +65,7 @@ def create_api_key(admin_user):
 @admin_required
 def toggle_api_key_status(admin_user, key):
     """Bật / Tắt trạng thái hoạt động (Active / Revoked) của Key trên Web App & Supabase"""
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     new_status = data.get('status')
     res = api_key_manager.toggle_key_status(key, new_status=new_status)
     return jsonify(res)
@@ -80,7 +80,7 @@ def sync_supabase_keys(admin_user):
 @admin_bp.route('/api/admin/keys/<path:key>', methods=['PUT'])
 @admin_required
 def update_api_key(admin_user, key):
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     res = api_key_manager.update_key(key, data)
     return jsonify(res)
 
@@ -119,7 +119,7 @@ def platform_config(admin_user):
             "max_user_custom_avatars": content_studio_engine.settings.get("max_user_custom_avatars", 3)
         })
 
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     el_key = data.get("elevenlabs_api_key")
     hg_key = data.get("heygen_api_key")
     supa_url = data.get("supabase_url")
@@ -145,7 +145,7 @@ def platform_config(admin_user):
 @admin_bp.route('/api/admin/platforms/check-elevenlabs', methods=['POST'])
 @admin_required
 def check_elevenlabs(admin_user):
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     custom_key = data.get("api_key")
     res = content_studio_engine.check_elevenlabs_balance(api_key=custom_key)
     return jsonify(res)
@@ -153,7 +153,7 @@ def check_elevenlabs(admin_user):
 @admin_bp.route('/api/admin/platforms/check-heygen', methods=['POST'])
 @admin_required
 def check_heygen(admin_user):
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     custom_key = data.get("api_key")
     res = content_studio_engine.check_heygen_balance(api_key=custom_key)
     return jsonify(res)
@@ -161,7 +161,7 @@ def check_heygen(admin_user):
 @admin_bp.route('/api/admin/platforms/check-supabase', methods=['POST'])
 @admin_required
 def check_supabase(admin_user):
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     url = data.get("supabase_url")
     anon_key = data.get("supabase_anon_key")
     res = content_studio_engine.check_supabase_connection(url=url, anon_key=anon_key)
@@ -170,7 +170,7 @@ def check_supabase(admin_user):
 @admin_bp.route('/api/admin/kill-stream', methods=['POST'])
 @admin_required
 def admin_kill_stream(admin_user):
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     stream_id = data.get('stream_id', '')
     res = cloud_stream_engine.stop_stream(admin_user["id"], stream_id, is_admin=True)
     return jsonify(res)
